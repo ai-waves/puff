@@ -7,12 +7,16 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
+    "test:levels": "LEVELS=1 vitest run",
     "typecheck": "tsc --noEmit",
     "ios:sync": "npm run build && cap sync ios"
   },
   "dependencies": {
     "@capacitor/core": "^8.6.0",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/preferences": "^8.0.1",
     "@fontsource/fredoka": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
     "phaser": "^4.2.1"
   },
   "devDependencies": {
