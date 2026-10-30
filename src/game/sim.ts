@@ -9,6 +9,7 @@ import {
   PUFF_RADIUS,
   RESPAWN_TIME,
   SIM_STEP,
+  STALL_REWIND,
   STUCK_REWIND,
   WHEEL_FREEZE,
 } from '../config/constants';
@@ -70,6 +71,8 @@ export interface SimState {
   rewinding: boolean;
   freezeUntil: number;
   stuckFor: number;
+  furthestX: number; // where the leader last made real progress, and when
+  furthestAt: number;
   touching: string[];
   deaths: number;
   bumps: number;
@@ -100,6 +103,9 @@ const STRAND_DISTANCE = 360;
 const FLING_REACH = 100; // a tipping log knocks loose pebbles this close to its rising end
 const BUMP_COOLDOWN = 0.6; // s between bumps; inside it, Puff rests against the wall
 const TIP_COOLDOWN = 1; // s a tipped log settles before it can tip back
+const PROGRESS_STEP = 10; // pt the leader must gain to count as moving on
+const SIDE_CONTACT = 0.8; // |normal x| above this counts as a side-on touch
+const ONE_WAY_DEPTH = 10; // pt; deeper overlaps mean Puff is rising up through a log, not landing on it
 const FLING_CLEAR = 0.3; // s a knocked pebble flies clear of walls before it can hit them
 
 // Formation for the flock, relative to the leader. Every slot stays within the 45pt spread.
@@ -141,6 +147,8 @@ function initialState(def: LevelDef): SimState {
     rewinding: false,
     freezeUntil: 0,
     stuckFor: 0,
+    furthestX: def.startX,
+    furthestAt: 0,
     touching: [],
     deaths: 0,
     bumps: 0,
@@ -312,6 +320,8 @@ function respawn(sim: Sim, events: SimEvent[]): void {
   s.respawnAt = null;
   s.freezeUntil = s.t + WHEEL_FREEZE;
   s.stuckFor = 0;
+  s.furthestX = x;
+  s.furthestAt = s.t;
   s.touching = [];
   s.failCause = null;
   events.push({ type: 'respawn', rewind: s.rewinding });
@@ -444,7 +454,7 @@ function movePuff(sim: Sim, puff: Puff, i: number, dt: number, events: SimEvent[
   const contacts = new Set<string>();
   const hit = (key: string, c: Contact | null, bounce = 0) => {
     if (!c) return false;
-    resolve(puff, vx, c, bounce);
+    resolve(puff, c, bounce);
     if (Math.abs(c.nx) > 0.6 && c.nx < 0) {
       contacts.add(key);
       const fresh = !s.touching.includes(`${puff.id}:${key}`) && s.t - (puff.lastBump ?? -Infinity) > BUMP_COOLDOWN;
@@ -475,14 +485,16 @@ function movePuff(sim: Sim, puff: Puff, i: number, dt: number, events: SimEvent[
     const st = s.seesaws[si]!;
     const e = seesawEnds(sw, st.angle);
     const c = circleCapsule(puff.x, puff.y, puff.r, e.ax, e.ay, e.bx, e.by, PLANK_HALF_THICK);
-    if (c) {
+    // Logs are one-way: Puff lands on top, but rises up through one from below. Otherwise the
+    // narrowing gap under a raised end could wedge Puff against the ground with no way out.
+    if (c && c.ny < -0.3 && c.depth < ONE_WAY_DEPTH) {
       const settled = s.t - st.flippedAt >= TIP_COOLDOWN;
       const landing = c.ny < -0.5 && puff.vy > 40 && settled;
       const onHigh = (c.px - sw.px) * st.side > sw.half * 0.25;
       const mode = sw.mode ?? 'free';
       if (landing && onHigh && (mode === 'free' || mode === 'return')) flip(sim, si, events, true);
       if (landing && mode === 'dud') {
-        resolve(puff, vx, c, 0);
+        resolve(puff, c, 0);
         puff.vy = -260; // the wrong log just bounces you
         return;
       }
@@ -499,7 +511,7 @@ function movePuff(sim: Sim, puff: Puff, i: number, dt: number, events: SimEvent[
     if (p.gone) return;
     const c = circleCircle(puff.x, puff.y, puff.r, p.x, p.y, pd.r);
     if (!c) return;
-    resolve(puff, vx, c, 0);
+    resolve(puff, c, 0);
     if (!p.jammed && c.nx < 0) {
       // Bumping a pebble rolls it ahead.
       if (p.vx < sim.speed * 1.2) events.push({ type: 'push', id: pd.id });
@@ -514,10 +526,17 @@ function movePuff(sim: Sim, puff: Puff, i: number, dt: number, events: SimEvent[
 }
 
 // Push a Puff out of a shape. Puffs move forward at the scroll speed, so a push backward costs ground.
-function resolve(puff: Puff, vx: number, c: Contact, bounce: number): void {
+// Only vertical speed into the surface is cancelled. Forward speed is fixed, so turning it into vertical
+// speed would pin Puff to the floor beside anything round, like a pebble or a log end.
+function resolve(puff: Puff, c: Contact, bounce: number): void {
+  if (Math.abs(c.nx) >= SIDE_CONTACT) {
+    // A side-on touch just pushes Puff straight back, so it can still climb or drop along the obstacle.
+    puff.x += c.depth / c.nx;
+    return;
+  }
   puff.x += c.nx * c.depth;
   puff.y += c.ny * c.depth;
-  const vn = vx * c.nx + puff.vy * c.ny;
+  const vn = puff.vy * c.ny;
   if (vn < 0) puff.vy -= (1 + bounce) * vn * c.ny;
 }
 
@@ -599,13 +618,19 @@ function checkBlooms(sim: Sim, events: SimEvent[]): void {
   });
 }
 
-// If Puff is pressed against a closed gate for a while, it drifts back to try again.
+// If Puff is pressed against a closed gate for a while, it drifts back to try again. As a safety net,
+// the same happens after a long stretch with no forward progress at all, so nothing can softlock a run.
 function checkStuck(sim: Sim, dt: number, events: SimEvent[]): void {
   const { def, s } = sim;
   const lead = s.puffs[0]!;
   const blocked = def.gates.some((g, i) => s.touching.includes(`${lead.id}:${g.id}`) && s.gates[i]!.open < 0.6);
   s.stuckFor = blocked ? s.stuckFor + dt : 0;
-  if (s.stuckFor >= STUCK_REWIND) {
+  // Progress means real ground, not the float jitter of resting against a wall.
+  if (lead.x >= s.furthestX + PROGRESS_STEP) {
+    s.furthestX = lead.x;
+    s.furthestAt = s.t;
+  }
+  if (s.stuckFor >= STUCK_REWIND || s.t - s.furthestAt >= STALL_REWIND) {
     s.stuckFor = 0;
     s.phase = 'respawning';
     s.respawnAt = s.t + RESPAWN_TIME;
@@ -632,8 +657,9 @@ function movePebbles(sim: Sim, dt: number, events: SimEvent[]): void {
       p.y += c.ny * c.depth;
       const vn = p.vx * c.nx + p.vy * c.ny;
       if (vn < 0) {
-        p.vx -= 1.2 * vn * c.nx;
-        p.vy -= 1.2 * vn * c.ny;
+        // Pebbles are heavy: they stop dead against a wall instead of bouncing back.
+        p.vx -= vn * c.nx;
+        p.vy -= vn * c.ny;
       }
       return true;
     };

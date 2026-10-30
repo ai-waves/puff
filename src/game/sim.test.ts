@@ -311,3 +311,51 @@ describe('checkpoints and the burrow', () => {
     expect(sim.s.phase).toBe('won');
   });
 });
+
+describe('never stuck', () => {
+  // Forward speed must never turn into downward speed against something round: beside a pebble on
+  // the floor, that pins Puff down however long the player holds.
+  it('lets a held Puff rise off the floor beside a pebble wedged against a lip', () => {
+    const sim = started(level({
+      startX: 240,
+      startY: FLOOR - 15,
+      pebbles: [{ id: 'p', x: 300, y: FLOOR - 18, r: 18 }],
+      rects: [{ id: 'lip', x0: 318, x1: 334, y0: 312, y1: FLOOR }],
+    }));
+    run(sim, 1, false); // comes to rest against the pebble
+    expect(sim.s.puffs[0]!.y).toBeCloseTo(FLOOR - 15, 0);
+    run(sim, 0.7, true);
+    expect(sim.s.puffs[0]!.y).toBeLessThan(FLOOR - 15 - 25); // rises about as fast as in open air
+    run(sim, 1.8, true);
+    const p = sim.s.puffs[0]!;
+    expect(p.y).toBeLessThan(290);
+    expect(p.x).toBeGreaterThan(334);
+    // Pebbles are heavy: shoved against the lip, it stays put rather than bouncing back off it.
+    expect(sim.s.pebbles[0]!.x).toBeCloseTo(300, 0);
+  });
+
+  it('never wedges Puff under a raised log end: it rises up through the log', () => {
+    const sim = started(level({ startX: 200, startY: FLOOR - 15, seesaws: [{ id: 'log', px: 400, py: 320, half: 110, high: 'left' }] }));
+    run(sim, 1.5, false); // flies low, under the raised end
+    run(sim, 3, true);
+    const p = sim.s.puffs[0]!;
+    expect(p.x).toBeGreaterThan(420);
+    expect(p.y).toBeLessThan(300);
+  });
+
+  it('still lands on a log from above', () => {
+    const sim = started(level({ startX: 300, startY: 200, seesaws: [{ id: 'log', px: 400, py: 300, half: 110, high: 'right', mode: 'dud' }] }));
+    run(sim, 0.6, false);
+    expect(sim.s.puffs[0]!.y).toBeLessThan(300); // bounced on top, not fallen through
+  });
+
+  it('drifts back after 8s with no forward progress at all', () => {
+    const sim = started(level({ rects: [{ id: 'wall', x0: 300, x1: 340, y0: 14, y1: FLOOR }], blooms: [{ id: 'b1', x: 150 }] }));
+    // Puff reaches the wall at about 1.5s, so it drifts back about 8s later.
+    const early = run(sim, 7, true);
+    expect(types(early)).not.toContain('respawn');
+    const events = run(sim, 3.5, true);
+    expect(events).toContainEqual({ type: 'respawn', rewind: true });
+    expect(sim.s.puffs[0]!.x).toBeLessThan(300);
+  });
+});

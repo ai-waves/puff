@@ -48,7 +48,7 @@ default, as the Pause frame shows. Progress is stored in `@capacitor/preferences
 npm install
 npm run dev          # play in a browser at the printed URL
 npm test             # unit tests: tuning, geometry, every mechanic, level data vs the board, progress
-npm run test:levels  # slow (~2 min): a beam-search player proves every level is finishable,
+npm run test:levels  # slow (several minutes): a beam-search player proves every level is finishable,
                      # every one of the 15 seeds is collectable, and both clone badges are earnable
 npm run build        # typecheck + production bundle in dist/
 ```
@@ -94,8 +94,13 @@ src/platform/    Capacitor storage and haptics
   1-2, seed 3 is a steep dive just past the right log's raised end; "Grab, then tip" can't be enforced.
 - **Timed gate (1-2).** Gate 2 opens when log 2 tips, then drifts shut over 3 s once Puff comes within
   260pt. Taken literally, the beat timestamps would shut it before Puff ever arrived.
-- **Stuck at a gate.** Pressed against a closed gate for 3 s, Puff drifts back to the last bloom with no
-  penalty, so a missed log never softlocks a level with no way to die.
+- **Never stuck.** Pressed against a closed gate for 3 s, Puff drifts back to the last bloom with no
+  penalty, so a missed log never softlocks a level with no way to die. As a safety net, the same happens
+  after 8 s with no forward progress at all (the "Hold" hint returns at 4 s first).
+- **Logs are one-way.** Puff lands on a log from above but rises up through one from below, so the
+  narrowing gap under a raised end can never wedge it against the ground. Side-on touches push Puff
+  straight back, so it can always climb or drop along an obstacle. Pebbles are heavy and don't bounce
+  off walls, so the one sitting on 1-1's seed 2 stays put until the log knocks it away.
 - **Map scale vs text.** The level maps are illustrative and their beat timestamps don't line up with the
   scroll speed. Positions follow the maps. Where the text gives a number (110pt for 6 s, a 10 s bramble
   run, thorns ending two screens before the burrow), the number wins.
