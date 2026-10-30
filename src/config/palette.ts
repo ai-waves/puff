@@ -12,6 +12,8 @@ export const BLUSH = 0xee9c86;
 export const MUTED = 0xc9b9a4; // muted text
 export const DEEP = 0x0a0606; // foreground L4 silhouettes
 export const MINT = 0xc8f0be; // Split bubble glow
+export const PEACH = 0xffbe96; // Swell orb glow
+export const ICE = 0xbed7ff; // Shrink orb glow
 export const BURROW_GLOW = 0xf6d7a2;
 
 export const css = (c: number) => `#${c.toString(16).padStart(6, '0').toUpperCase()}`;

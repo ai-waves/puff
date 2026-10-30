@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { PLAYFIELD, SCREEN } from '../../config/constants';
+import { PLAYFIELD, PUFF_SCREEN_X, SCREEN } from '../../config/constants';
 import { tuning } from '../../config/tuning';
-import { briarTriangles, humpCircle } from '../sim';
+import { briarTriangles, humpCircle, seesawEnds } from '../sim';
 import { LEVELS, levelById } from './index';
 
 const get = (id: string) => levelById(id)!;
@@ -25,13 +25,26 @@ describe('chapter 1 content', () => {
     expect(LEVELS.map((l) => l.blooms.length)).toEqual([1, 1, 2, 2, 3]);
   });
 
-  it('keeps 1-1 and 1-2 deathless, with death from 1-3', () => {
+  it('has nothing deadly in 1-1 and 1-2, where only the scroll can leave Puff behind', () => {
     for (const id of ['1-1', '1-2']) {
       const l = get(id);
-      expect(l.deaths).toBe('none');
-      expect(l.briars.length + l.curtains.length + l.wheels.length).toBe(0);
+      expect(l.deaths).toBe('instant');
+      expect(l.briars.length + l.curtains.length + l.wheels.length + l.crushers.length).toBe(0);
     }
     expect(get('1-3').deaths).toBe('instant');
+    expect(get('1-3').briars.length).toBeGreaterThan(0);
+  });
+
+  it('keeps every gate on the same screen as the log that works it, and tucks it into the roof when open', () => {
+    for (const l of LEVELS) {
+      for (const g of l.gates) {
+        const sw = l.seesaws.find((s) => s.id === g.link)!;
+        const e = seesawEnds(sw, 0);
+        // Puff sits 280pt in from the left, so the rest of the screen is ahead of it.
+        expect(g.x - Math.max(e.ax, e.bx), `${l.id} ${g.id}`).toBeLessThanOrEqual(SCREEN.width - PUFF_SCREEN_X - 40);
+        expect(g.openBottom, `${l.id} ${g.id}`).toBeLessThanOrEqual(ROOF + 30);
+      }
+    }
   });
 
   it('matches the props each level lists', () => {
@@ -94,10 +107,22 @@ describe('narrowest gaps', () => {
     expect(glade).toEqual([1, -1, 1]); // counter-rotating
   });
 
+  it('re-forms Puff in open air: the start and every bloom are clear of ground', () => {
+    for (const l of LEVELS) {
+      const spots = [{ x: l.startX, y: l.startY }, ...l.blooms.map((b) => ({ x: b.x, y: 190 }))];
+      for (const p of spots) {
+        for (const r of l.rects) {
+          const near = p.x + 15 > r.x0 && p.x - 15 < r.x1 && p.y + 15 > r.y0 && p.y - 15 < r.y1;
+          expect(near, `${l.id} spawn at ${p.x} inside ${r.id}`).toBe(false);
+        }
+      }
+    }
+  });
+
   it('never puts a seed inside solid ground', () => {
     for (const l of LEVELS) {
       for (const seed of l.seeds) {
-        if (seed.orbit) continue;
+        if (seed.orbit || seed.ride) continue;
         expect(seed.y).toBeGreaterThan(ROOF);
         expect(seed.y).toBeLessThan(FLOOR);
         for (const r of l.rects) {

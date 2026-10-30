@@ -66,6 +66,8 @@ export const L15: LevelDef = {
     { id: 'bubble-2', x: 7150, y: 70 }, // beat 07: two bubbles off the main line top the flock up to 6
     { id: 'bubble-3', x: 7350, y: 322 },
   ],
+  orbs: [],
+  crushers: [],
   blooms: [
     { id: 'bloom-1', x: 3908 }, // beat 04: wheels freeze for 1s after a respawn
     { id: 'bloom-2', x: 6977 }, // beat 07

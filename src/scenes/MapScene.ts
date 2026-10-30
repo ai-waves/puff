@@ -120,7 +120,7 @@ export class MapScene extends Phaser.Scene {
     items.push(label(this, x + 20, y + 38, body, { size: 13, weight: 400, color: MUTED }).setWordWrapWidth(textW));
     if (playable && level) {
       const play = button(this, 0, y + 10, 'Play', { kind: 'primary', h: 48, size: 18, onTap: () => go(this, 'play', { levelId: level.id }) });
-      play.setX(x + w - 10 - play.w / 2);
+      play.setX(x + w - 10 - play.span / 2);
       items.push(play);
     }
     this.card = this.add.container(0, 0, items);

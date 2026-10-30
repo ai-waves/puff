@@ -1,40 +1,53 @@
+import type { b2BodyId, b2JointId, b2ShapeId, b2Vec2, b2WorldId } from 'box2d3-wasm/compat';
 import {
-  BUMP_BACK,
+  CAM_LEAD,
   CLONE_LAG,
   CLONE_RADIUS,
   CLONE_SPREAD,
+  DRIFT,
+  EDGE_KILL,
   MAX_PUFFS,
   PHYSICS,
   PLAYFIELD,
   PUFF_RADIUS,
+  PUFF_SCREEN_X,
   RESPAWN_TIME,
+  SCREEN,
   SIM_STEP,
-  STALL_REWIND,
-  STUCK_REWIND,
+  SIZE,
+  SUBSTEPS,
   WHEEL_FREEZE,
 } from '../config/constants';
 import { tuning } from '../config/tuning';
-import { angleDiff, circleCapsule, circleCircle, circleRect, circleTriangle, clamp, type Contact } from './geometry';
-import type { LevelDef, SeesawDef, WheelDef } from './types';
+import { addBox, addCapsule, addCircle, addPolygon, addRoundedRect, b2, createBody, m, PT } from './physics';
+import type { CrusherDef, LevelDef, RectDef, SeesawDef, WheelDef } from './types';
 
-// Pure fixed-step simulation of one level. No rendering and no randomness, so tests and the
-// level solver can run it headless and get the same result every time.
+// One level, simulated by Box2D v3 at a fixed step. No rendering and no randomness: tests and the
+// level solver run it headless and get the same result every time, and a snapshot of the Box2D
+// world plus the plain-data state below restores any moment exactly.
+//
+// Badland rules: the screen scrolls on its own. Puff drifts forward and only controls its height.
+// A Puff that touches something deadly, or that the left edge of the screen passes, is lost.
 
-export type Cause = 'briar' | 'thornwheel' | 'stranded';
+export type Cause = 'briar' | 'thornwheel' | 'crusher' | 'behind';
 
 export type SimEvent =
   | { type: 'start' }
   | { type: 'bump'; x: number; y: number; leader: boolean }
   | { type: 'tip'; id: string }
-  | { type: 'drop'; id: string } // a returning seesaw falls back
-  | { type: 'knock'; id: string } // a thornwheel knocks a seesaw
+  | { type: 'drop'; id: string } // a returning log falls back
+  | { type: 'knock'; id: string } // a thornwheel knocks a log
   | { type: 'gate'; id: string }
   | { type: 'seed'; id: string }
   | { type: 'pop'; id: string }
   | { type: 'split'; x: number; y: number; count: number }
+  | { type: 'resize'; id: string; kind: 'swell' | 'shrink' }
+  | { type: 'unsize' } // a Swell or Shrink wore off
+  | { type: 'dust'; id: string } // a rootcrusher is about to drop
+  | { type: 'slam'; id: string }
   | { type: 'checkpoint'; id: string }
   | { type: 'lost'; x: number; y: number; cause: Cause; leader: boolean; left: number }
-  | { type: 'respawn'; rewind: boolean }
+  | { type: 'respawn' }
   | { type: 'jam'; id: string }
   | { type: 'push'; id: string }
   | { type: 'fail'; cause: Cause }
@@ -42,12 +55,19 @@ export type SimEvent =
 
 export interface Puff {
   id: number;
+  body: number; // which body of the pool it flies
   x: number;
   y: number;
+  vx: number;
   vy: number;
-  r: number;
+  pvx: number; // velocity before the last step, to tell a bump from a graze
+  pvy: number;
+  r: number; // current radius, pt
+  base: number; // radius at normal size: the leader is bigger than its clones
+  size: number; // the size it's growing or shrinking toward
+  sizeUntil: number; // s, when a Swell or Shrink wears off
   bonk: number; // seconds of squash left after a bump
-  lastBump?: number; // s, when it last bumped; a Puff pressed against a wall just rests there
+  lastBump: number;
 }
 
 export interface SimState {
@@ -56,24 +76,24 @@ export interface SimState {
   held: boolean;
   history: boolean[]; // held state per step, newest last, for clone lag
   lastReleaseAt: number;
+  camX: number; // world x of the screen's left edge
+  lingerUntil: number;
+  lingered: boolean;
   puffs: Puff[]; // index 0 leads; only the leader has a sprout
   nextId: number;
-  seesaws: { side: 1 | -1; angle: number; flippedAt: number; flips: number }[];
-  gates: { open: number; closingAt: number | null }[];
-  curtains: { open: number }[];
+  seesaws: { angle: number; side: 1 | -1; flips: number; flippedAt: number; returning: boolean; beat: number }[];
+  gates: { open: number; closingAt: number | null; lift: number }[];
+  curtains: { open: number; lift: number }[];
   wheels: { angle: number; jammed: boolean }[];
-  pebbles: { x: number; y: number; vx: number; vy: number; jammed: boolean; gone: boolean; flungUntil: number }[];
+  pebbles: { x: number; y: number; angle: number; jammed: boolean; gone: boolean }[];
+  crushers: { drop: number; warn: boolean }[];
   bubbles: { poppedAt: number | null; splitBy: number[] }[];
+  orbs: { poppedAt: number | null; by: number[] }[];
   seeds: boolean[];
   blooms: boolean[];
   checkpoint: { x: number; y: number; count: number } | null;
   respawnAt: number | null;
-  rewinding: boolean;
   freezeUntil: number;
-  stuckFor: number;
-  furthestX: number; // where the leader last made real progress, and when
-  furthestAt: number;
-  touching: string[];
   deaths: number;
   bumps: number;
   tips: number;
@@ -81,32 +101,66 @@ export interface SimState {
   failCause: Cause | null;
 }
 
+type Tag =
+  | { kind: 'puff'; slot: number }
+  | { kind: 'sensor'; slot: number }
+  | { kind: 'hazard'; cause: Cause; wheel?: number }
+  | { kind: 'pebble'; index: number }
+  | { kind: 'solid' };
+
+// Box2D handles for one sim. They never change after createSim, and a snapshot restores the
+// world they point into.
+interface World {
+  id: b2WorldId;
+  ground: b2BodyId;
+  puffBodies: b2BodyId[];
+  puffShapes: b2ShapeId[];
+  puffSensors: b2ShapeId[];
+  joints: (b2JointId | null)[];
+  gates: b2BodyId[];
+  curtains: b2BodyId[];
+  wheels: b2BodyId[];
+  pebbles: b2BodyId[];
+  crushers: b2BodyId[];
+  tags: Map<number, Tag>;
+  vec: b2Vec2;
+}
+
 export interface Sim {
   readonly def: LevelDef;
   readonly speed: number;
+  readonly world: World;
   s: SimState;
 }
 
+export interface Snapshot {
+  s: SimState;
+  world: Uint8Array;
+}
+
+const { roofY: ROOF, floorY: FLOOR } = PLAYFIELD;
 const TILT = (12 * Math.PI) / 180;
 const PLANK_HALF_THICK = 5;
-const FULCRUM_HALF = 12;
 const GATE_WIDTH = 14;
 const BUBBLE_R = 20;
+const ORB_R = 20;
 const SEED_R = 7;
-const POP_WINDOW = 0.25;
+const POP_WINDOW = 0.4; // s a popping bubble or orb still catches the Puffs behind the first
 const WHEEL_CORE = 0.75;
-const TOOTH_GAP = (16 * Math.PI) / 180;
-const PEBBLE_GRAVITY = 600;
+const WHEEL_TEETH = 16;
 const CLONE_DELAY_STEPS = Math.round(CLONE_LAG / SIM_STEP);
 const BLOOM_SPAWN_Y = 190;
-const STRAND_DISTANCE = 360;
-const FLING_REACH = 100; // a tipping log knocks loose pebbles this close to its rising end
-const BUMP_COOLDOWN = 0.6; // s between bumps; inside it, Puff rests against the wall
-const TIP_COOLDOWN = 1; // s a tipped log settles before it can tip back
-const PROGRESS_STEP = 10; // pt the leader must gain to count as moving on
-const SIDE_CONTACT = 0.8; // |normal x| above this counts as a side-on touch
-const ONE_WAY_DEPTH = 10; // pt; deeper overlaps mean Puff is rising up through a log, not landing on it
-const FLING_CLEAR = 0.3; // s a knocked pebble flies clear of walls before it can hit them
+const SENSOR_GRACE = 3; // pt; Puff survives a thorn that only grazes its fuzz
+const BUMP_SPEED = 60; // pt/s of speed lost in a fresh touch to count as a bump
+const BUMP_COOLDOWN = 0.6;
+const PLANK_DENSITY = 0.5;
+const PEBBLE_DENSITY = 0.6; // lighter than Puff, so a bump sends it rolling
+const BOULDER_DENSITY = 1; // a boulder slides rather than rolls: a normal Puff can't shove it, a swollen one can
+const KNOCK_SPEED = (TILT * 2) / 0.25; // rad/s, a motor-driven log swings across in a quarter second
+const KNOCK_TORQUE = 4000; // N·m, far more than any Puff can resist
+const CRUSHER_TEETH = 10; // pt, the deadly underside
+const CRUSH = { warn: 0.7, slam: 0.14, hold: 0.45, rise: 0.9 }; // s, before the 1% ramp
+const FAR = 1000; // pt the roof and floor reach past both ends of the level
 
 // Formation for the flock, relative to the leader. Every slot stays within the 45pt spread.
 export const SLOTS = [
@@ -118,8 +172,182 @@ export const SLOTS = [
   { dx: -36, dy: 4 },
 ];
 
+// ---------- Setup ----------
+
+let live = 0;
+
 export function createSim(def: LevelDef): Sim {
-  return { def, speed: tuning(def.n).speed, s: initialState(def) };
+  const B = b2();
+  if (live >= 100) throw new Error('Too many sims alive: destroySim() the ones you are done with.');
+  const wd = B.b2DefaultWorldDef();
+  wd.gravity.Set(0, m(PHYSICS.gravity));
+  const id = B.b2CreateWorld(wd);
+  wd.delete();
+  live += 1;
+
+  const ground = createBody(id, 'static', 0, 0);
+  const world: World = {
+    id,
+    ground,
+    puffBodies: [],
+    puffShapes: [],
+    puffSensors: [],
+    joints: [],
+    gates: [],
+    curtains: [],
+    wheels: [],
+    pebbles: [],
+    crushers: [],
+    tags: new Map(),
+    vec: new B.b2Vec2(0, 0),
+  };
+  const sim: Sim = { def, speed: tuning(def.n).speed, world, s: initialState(def) };
+  const tag = (ids: b2ShapeId | b2ShapeId[], t: Tag) => {
+    for (const s of Array.isArray(ids) ? ids : [ids]) world.tags.set(s.index1, t);
+  };
+  const solid: Tag = { kind: 'solid' };
+  const briar: Tag = { kind: 'hazard', cause: 'briar' };
+
+  // Roof and floor, the length of the level and then some.
+  tag(addBox(ground, -FAR, ROOF - 400, def.length + FAR, ROOF, { cat: 'terrain' }), solid);
+  tag(addBox(ground, -FAR, FLOOR, def.length + FAR, FLOOR + 400, { cat: 'terrain' }), solid);
+
+  for (const r of def.rects) tag(addRect(ground, r), solid);
+  for (const h of def.humps) {
+    const c = humpCircle(h.width, h.height);
+    tag(addCircle(ground, h.cx, c.cy, c.r, { cat: 'terrain', restitution: PHYSICS.bounce }), solid);
+  }
+  for (const b of def.briars) {
+    for (const t of briarTriangles(b)) tag(addPolygon(ground, [{ x: t.ax, y: t.ay }, { x: t.bx, y: t.by }, { x: t.qx, y: t.qy }], { cat: 'hazard' }), briar);
+  }
+
+  for (const sw of def.seesaws) world.joints.push(buildSeesaw(sim, sw, (ids) => tag(ids, solid)));
+
+  for (const g of def.gates) {
+    // A bar hanging from the roof, rounded at the bottom like the drawing.
+    const o = { x: g.x + GATE_WIDTH / 2, y: FLOOR };
+    const body = createBody(id, 'kinematic', o.x, o.y);
+    const r = GATE_WIDTH / 2;
+    tag(addCapsule(body, { x: o.x, y: ROOF - 60 }, { x: o.x, y: FLOOR - r }, r, { cat: 'prop' }, o), solid);
+    world.gates.push(body);
+  }
+  for (const c of def.curtains) {
+    const o = { x: (c.x0 + c.x1) / 2, y: c.closedBottom };
+    const body = createBody(id, 'kinematic', o.x, o.y);
+    tag(addBox(body, c.x0 - 3, ROOF - 300, c.x1 + 3, c.closedBottom, { cat: 'hazard' }, o), briar);
+    world.curtains.push(body);
+  }
+  def.wheels.forEach((w, i) => {
+    const o = { x: w.cx, y: w.cy };
+    const body = createBody(id, 'kinematic', o.x, o.y);
+    const hz: Tag = { kind: 'hazard', cause: 'thornwheel', wheel: i };
+    tag(addCircle(body, w.cx, w.cy, wheelCore(w), { cat: 'hazard' }, o), hz);
+    const tooth = w.r * 0.11;
+    for (let k = 0; k < WHEEL_TEETH; k++) {
+      if (w.missingTooth && k === 0) continue;
+      const a = (k / WHEEL_TEETH) * Math.PI * 2;
+      tag(addCircle(body, w.cx + Math.cos(a) * (w.r - tooth), w.cy + Math.sin(a) * (w.r - tooth), tooth, { cat: 'hazard' }, o), hz);
+    }
+    world.wheels.push(body);
+  });
+  def.pebbles.forEach((p, i) => {
+    const body = createBody(id, 'dynamic', p.x, p.y);
+    const pebble: Tag = { kind: 'pebble', index: i };
+    if (p.heavy) tag(addPolygon(body, boulderPoints(p), { cat: 'pebble', density: BOULDER_DENSITY, friction: 0.8, contactEvents: true }, p), pebble);
+    else tag(addCircle(body, p.x, p.y, p.r, { cat: 'pebble', density: PEBBLE_DENSITY, friction: 0.7, rolling: 0.02, contactEvents: true }, p), pebble);
+    world.pebbles.push(body);
+  });
+  def.crushers.forEach((c, i) => {
+    const st = crusherState(def, c, 0);
+    const o = { x: c.x, y: c.rest };
+    const body = createBody(id, 'kinematic', c.x, c.rest + st.drop * (FLOOR - c.rest));
+    const x0 = c.x - c.width / 2;
+    const x1 = c.x + c.width / 2;
+    tag(addBox(body, x0, c.rest - c.height, x1, c.rest - CRUSHER_TEETH, { cat: 'prop' }, o), solid);
+    tag(addBox(body, x0 + 2, c.rest - CRUSHER_TEETH, x1 - 2, c.rest, { cat: 'hazard' }, o), { kind: 'hazard', cause: 'crusher' });
+    sim.s.crushers[i] = st;
+    world.crushers.push(body);
+  });
+
+  // A pool of Puff bodies, disabled until a Puff flies one. Bodies are never created mid-level,
+  // so every handle stays valid across snapshots.
+  const start = { x: def.startX, y: def.startY };
+  for (let i = 0; i < MAX_PUFFS; i++) {
+    const body = createBody(id, 'dynamic', start.x, start.y, 0, true);
+    const shape = addCircle(body, start.x, start.y, PUFF_RADIUS, { cat: 'puff', friction: 0.05, contactEvents: true }, start);
+    const sensor = addCircle(body, start.x, start.y, PUFF_RADIUS - SENSOR_GRACE, { cat: 'sensor', sensor: true }, start);
+    tag(shape, { kind: 'puff', slot: i });
+    tag(sensor, { kind: 'sensor', slot: i });
+    B.b2Body_Disable(body);
+    world.puffBodies.push(body);
+    world.puffShapes.push(shape);
+    world.puffSensors.push(sensor);
+  }
+
+  const lead = spawnPuff(sim, def.startX, def.startY, PUFF_RADIUS, 0, 0, 1);
+  if (lead) sim.s.puffs.push(lead);
+  return sim;
+}
+
+// Static ground shaped like its drawing.
+function addRect(ground: b2BodyId, r: RectDef): b2ShapeId[] {
+  const w = r.x1 - r.x0;
+  const h = r.y1 - r.y0;
+  if (r.look === 'vine') {
+    // A thin stem with a leafy knot at the tip.
+    const mid = (r.x0 + r.x1) / 2;
+    const knot = Array.from({ length: 8 }, (_, k) => {
+      const a = (k / 8) * Math.PI * 2;
+      return { x: mid + Math.cos(a) * 9, y: r.y1 - 6 + Math.sin(a) * 6 };
+    });
+    return [addBox(ground, mid - 2, r.y0, mid + 2, r.y1 - 6, { cat: 'terrain' }), addPolygon(ground, knot, { cat: 'terrain' })];
+  }
+  // The same clamp the renderer applies to each corner radius.
+  const c = (v = 0) => Math.min(v, w / 2, h);
+  const round = r.round ?? {};
+  const bouncy = r.look === 'mound' ? PHYSICS.bounce : 0;
+  return addRoundedRect(ground, r.x0, r.y0, r.x1, r.y1, { tl: c(round.tl), tr: c(round.tr), br: c(round.br), bl: c(round.bl) }, { cat: 'terrain', restitution: bouncy });
+}
+
+// A Mossback log on a real hinge: a plank on the fulcrum's tip, free to tilt 12° either way.
+function buildSeesaw(sim: Sim, sw: SeesawDef, solid: (ids: b2ShapeId) => void): b2JointId | null {
+  const B = b2();
+  const { world } = sim;
+  const base = sw.baseY ?? FLOOR;
+  solid(addPolygon(world.ground, [{ x: sw.px - 18, y: base }, { x: sw.px + 18, y: base }, { x: sw.px, y: sw.py + 6 }], { cat: 'terrain' }));
+  const initial = sw.high === 'right' ? 1 : -1;
+  const angle = -initial * TILT; // Box2D's y points down, so a positive angle dips the right end
+  const mode = sw.mode ?? 'free';
+  const o = { x: sw.px, y: sw.py };
+  const plank = (body: b2BodyId, opts: Parameters<typeof addCapsule>[4]) =>
+    addCapsule(body, { x: sw.px - sw.half, y: sw.py }, { x: sw.px + sw.half, y: sw.py }, PLANK_HALF_THICK, opts, o);
+  if (mode === 'dud') {
+    // The wrong log is stuck fast, and springy: it just bounces you.
+    solid(plank(createBody(world.id, 'static', o.x, o.y, angle), { cat: 'prop', restitution: 0.9 }));
+    return null;
+  }
+  const body = createBody(world.id, 'dynamic', o.x, o.y, angle);
+  solid(plank(body, { cat: 'prop', density: sw.heavy ? PLANK_DENSITY * 3 : PLANK_DENSITY, friction: 0.8 }));
+  if (sw.cradle) {
+    // A knot of bark on the low end's tip, so a pebble resting there stays put.
+    const tip = sw.px - initial * (sw.half - 4);
+    solid(addBox(body, tip - 4, sw.py - PLANK_HALF_THICK - 9, tip + 4, sw.py, { cat: 'prop', density: PLANK_DENSITY }, o));
+  }
+  const jd = B.b2DefaultRevoluteJointDef();
+  jd.base.bodyIdA = world.ground;
+  jd.base.bodyIdB = body;
+  jd.base.localFrameA.p.Set(m(sw.px), m(sw.py));
+  jd.base.localFrameB.p.Set(0, 0);
+  jd.enableLimit = true;
+  jd.lowerAngle = -TILT;
+  jd.upperAngle = TILT;
+  // A beat log is swung by its motor. A heavy log's motor holds it still, like a stiff hinge.
+  jd.enableMotor = mode === 'beat' || !!sw.heavy;
+  jd.maxMotorTorque = KNOCK_TORQUE;
+  jd.motorSpeed = 0;
+  const joint = B.b2CreateRevoluteJoint(world.id, jd);
+  jd.delete();
+  return joint;
 }
 
 function initialState(def: LevelDef): SimState {
@@ -129,33 +357,50 @@ function initialState(def: LevelDef): SimState {
     held: false,
     history: [],
     lastReleaseAt: 0,
-    puffs: [{ id: 0, x: def.startX, y: def.startY, vy: 0, r: PUFF_RADIUS, bonk: 0 }],
-    nextId: 1,
+    camX: def.startX - PUFF_SCREEN_X,
+    lingerUntil: 0,
+    lingered: false,
+    puffs: [],
+    nextId: 0,
     seesaws: def.seesaws.map((sw) => {
       const side = sw.high === 'right' ? 1 : -1;
-      return { side, angle: side * TILT, flippedAt: -Infinity, flips: 0 };
+      return { angle: side * TILT, side, flips: 0, flippedAt: -Infinity, returning: false, beat: 0 };
     }),
-    gates: def.gates.map(() => ({ open: 0, closingAt: null })),
-    curtains: def.curtains.map(() => ({ open: 0 })),
+    gates: def.gates.map(() => ({ open: 0, closingAt: null, lift: 0 })),
+    curtains: def.curtains.map(() => ({ open: 0, lift: 0 })),
     wheels: def.wheels.map(() => ({ angle: 0, jammed: false })),
-    pebbles: def.pebbles.map((p) => ({ x: p.x, y: p.y, vx: 0, vy: 0, jammed: false, gone: false, flungUntil: 0 })),
+    pebbles: def.pebbles.map((p) => ({ x: p.x, y: p.y, angle: 0, jammed: false, gone: false })),
+    crushers: def.crushers.map(() => ({ drop: 0, warn: false })),
     bubbles: def.bubbles.map(() => ({ poppedAt: null, splitBy: [] })),
+    orbs: def.orbs.map(() => ({ poppedAt: null, by: [] })),
     seeds: def.seeds.map(() => false),
     blooms: def.blooms.map(() => false),
     checkpoint: null,
     respawnAt: null,
-    rewinding: false,
     freezeUntil: 0,
-    stuckFor: 0,
-    furthestX: def.startX,
-    furthestAt: 0,
-    touching: [],
     deaths: 0,
     bumps: 0,
     tips: 0,
     home: 0,
     failCause: null,
   };
+}
+
+export function destroySim(sim: Sim): void {
+  const B = b2();
+  if (!B.b2World_IsValid(sim.world.id)) return;
+  B.b2DestroyWorld(sim.world.id);
+  sim.world.vec.delete();
+  live -= 1;
+}
+
+export function snapshot(sim: Sim): Snapshot {
+  return { s: structuredClone(sim.s), world: b2().b2World_GetSnapshot(sim.world.id) };
+}
+
+export function restore(sim: Sim, snap: Snapshot): void {
+  b2().b2World_RestoreFromSnapshot(sim.world.id, snap.world);
+  sim.s = structuredClone(snap.s);
 }
 
 export function leader(sim: Sim): Puff | undefined {
@@ -173,6 +418,7 @@ export function seedsFound(sim: Sim): number {
 
 // ---------- Geometry the renderer also needs ----------
 
+// Log ends for a tilt angle, where a positive angle raises the right end.
 export function seesawEnds(def: SeesawDef, angle: number) {
   const cx = Math.cos(angle) * def.half;
   const sy = Math.sin(angle) * def.half;
@@ -180,13 +426,25 @@ export function seesawEnds(def: SeesawDef, angle: number) {
 }
 
 export function gateBottom(sim: Sim, i: number): number {
-  const g = sim.def.gates[i]!;
-  return PLAYFIELD.floorY + (g.openBottom - PLAYFIELD.floorY) * sim.s.gates[i]!.open;
+  return FLOOR - sim.s.gates[i]!.lift;
 }
 
 export function curtainBottom(sim: Sim, i: number): number {
-  const c = sim.def.curtains[i]!;
-  return c.closedBottom + (c.openBottom - c.closedBottom) * sim.s.curtains[i]!.open;
+  return sim.def.curtains[i]!.closedBottom - sim.s.curtains[i]!.lift;
+}
+
+// The crusher block's underside right now.
+export function crusherBottom(sim: Sim, i: number): number {
+  const c = sim.def.crushers[i]!;
+  return c.rest + sim.s.crushers[i]!.drop * (FLOOR - c.rest);
+}
+
+// A boulder is an octagon, resting on a flat side.
+export function boulderPoints(p: { x: number; y: number; r: number }) {
+  return Array.from({ length: 8 }, (_, k) => {
+    const a = ((k + 0.5) / 8) * Math.PI * 2;
+    return { x: p.x + Math.cos(a) * p.r, y: p.y + Math.sin(a) * p.r };
+  });
 }
 
 export function humpCircle(width: number, height: number) {
@@ -200,6 +458,13 @@ export function wheelCore(w: WheelDef): number {
 
 export function seedPosition(sim: Sim, i: number): { x: number; y: number } {
   const seed = sim.def.seeds[i]!;
+  if (seed.ride) {
+    const si = sim.def.seesaws.findIndex((sw) => sw.id === seed.ride!.log);
+    const sw = sim.def.seesaws[si]!;
+    const a = sim.s.seesaws[si]!.angle;
+    const along = seed.ride.at * sw.half;
+    return { x: sw.px + Math.cos(a) * along - Math.sin(a) * seed.ride.lift, y: sw.py - Math.sin(a) * along - Math.cos(a) * seed.ride.lift };
+  }
   if (!seed.orbit) return seed;
   const wi = sim.def.wheels.findIndex((w) => w.id === seed.orbit!.wheel);
   const w = sim.def.wheels[wi]!;
@@ -214,6 +479,24 @@ export function briarTriangles(b: { x0: number; base: number; side: 'up' | 'down
     const x = b.x0 + i * w;
     return { ax: x, ay: b.base, bx: x + w, by: b.base, qx: x + w / 2, qy: b.base + dir * h };
   });
+}
+
+// A rootcrusher's beat: it slams down, holds, rises, waits, and dust falls just before the next
+// slam. Its windows shorten with the 1% ramp, like every other timing.
+export function crusherState(def: LevelDef, c: CrusherDef, t: number): { drop: number; warn: boolean } {
+  const d = tuning(def.n).d;
+  const period = c.period / d;
+  const slam = CRUSH.slam;
+  const hold = CRUSH.hold / d;
+  const rise = CRUSH.rise / d;
+  const u = (((t + (c.offset ?? 0)) % period) + period) % period;
+  if (u < slam) return { drop: (u / slam) ** 2, warn: false };
+  if (u < slam + hold) return { drop: 1, warn: false };
+  if (u < slam + hold + rise) {
+    const k = (u - slam - hold) / rise;
+    return { drop: 1 - k * k * (3 - 2 * k), warn: false };
+  }
+  return { drop: 0, warn: u >= period - CRUSH.warn / d };
 }
 
 // ---------- Stepping ----------
@@ -233,44 +516,50 @@ export function step(sim: Sim, dt: number = SIM_STEP): SimEvent[] {
   }
 
   s.t += dt;
-  updateProps(sim, dt, events);
+  driveProps(sim, dt, events);
+  if (s.phase === 'running') drivePuffs(sim);
+  b2().b2World_Step(sim.world.id, dt, SUBSTEPS);
+  readBack(sim, dt);
+
+  const lost: { puff: Puff; cause: Cause }[] = [];
+  readEvents(sim, events, lost);
 
   if (s.phase === 'respawning') {
     if (s.respawnAt !== null && s.t >= s.respawnAt) respawn(sim, events);
     return events;
   }
 
-  const lost: { puff: Puff; cause: Cause }[] = [];
-  s.puffs.forEach((puff, i) => {
-    movePuff(sim, puff, i, dt, events);
-    const cause = hazardAt(sim, puff);
-    if (cause) lost.push({ puff, cause });
-  });
-
-  const lead = s.puffs[0]!;
-  for (const puff of s.puffs.slice(1)) {
-    if (puff.x < lead.x - STRAND_DISTANCE && !lost.some((l) => l.puff === puff)) lost.push({ puff, cause: 'stranded' });
+  scroll(sim, dt);
+  for (const puff of s.puffs) {
+    if (puff.x < s.camX + EDGE_KILL && !lost.some((l) => l.puff === puff)) lost.push({ puff, cause: 'behind' });
   }
 
   if (lost.length) {
     for (const { puff, cause } of lost) {
       const wasLeader = s.puffs[0] === puff;
       s.puffs = s.puffs.filter((p) => p !== puff);
+      b2().b2Body_Disable(sim.world.puffBodies[puff.body]!);
       events.push({ type: 'lost', x: puff.x, y: puff.y, cause, leader: wasLeader, left: s.puffs.length });
     }
     if (s.puffs.length === 0) {
       allLost(sim, lost[lost.length - 1]!.cause, events);
       return events;
     }
-    s.puffs[0]!.r = PUFF_RADIUS; // the next clone takes the lead and grows its sprout
+    const lead = s.puffs[0]!;
+    if (lead.base !== PUFF_RADIUS) {
+      // The next clone takes the lead and grows its sprout.
+      const scale = lead.r / lead.base;
+      lead.base = PUFF_RADIUS;
+      setRadius(sim, lead, PUFF_RADIUS * scale);
+    }
   }
 
+  resize(sim, dt, events);
   collectPickups(sim, events);
   checkBlooms(sim, events);
-  checkStuck(sim, dt, events);
 
   const front = s.puffs[0];
-  if (front && s.phase === 'running' && front.x >= sim.def.burrowX) {
+  if (front && front.x >= sim.def.burrowX) {
     s.phase = 'won';
     s.home = s.puffs.length;
     events.push({ type: 'win', home: s.home });
@@ -297,75 +586,229 @@ function allLost(sim: Sim, cause: Cause, events: SimEvent[]): void {
     // Instant respawn: a 0.4s burst of fluff, then Puff re-forms at the last bloom.
     s.phase = 'respawning';
     s.respawnAt = s.t + RESPAWN_TIME;
-    s.rewinding = false;
   }
 }
 
 function respawn(sim: Sim, events: SimEvent[]): void {
-  const s = sim.s;
+  const { s, def } = sim;
   const cp = s.checkpoint;
-  const count = s.rewinding ? Math.max(1, s.puffs.length) : (cp?.count ?? 1);
-  const x = cp?.x ?? sim.def.startX;
-  const y = cp?.y ?? sim.def.startY;
+  const count = cp?.count ?? 1;
+  const x = cp?.x ?? def.startX;
+  const y = cp?.y ?? def.startY;
+  for (const p of s.puffs) b2().b2Body_Disable(sim.world.puffBodies[p.body]!);
   s.puffs = [];
   for (let i = 0; i < count; i++) {
     const slot = SLOTS[i]!;
-    s.puffs.push({ id: s.nextId++, x: x + slot.dx, y: y + slot.dy, vy: 0, r: i === 0 ? PUFF_RADIUS : CLONE_RADIUS, bonk: 0 });
+    const puff = spawnPuff(sim, x + slot.dx, y + slot.dy, i === 0 ? PUFF_RADIUS : CLONE_RADIUS, 0, 0, 1);
+    if (puff) s.puffs.push(puff);
   }
-  // Timed gates whose log has tipped open again for another try.
-  s.gates.forEach((g) => {
-    g.closingAt = null;
+  // Another try: timed gates open again, and bubbles and orbs past the bloom grow back.
+  for (const g of s.gates) g.closingAt = null;
+  def.bubbles.forEach((b, i) => {
+    if (b.x > x) s.bubbles[i] = { poppedAt: null, splitBy: [] };
   });
-  s.phase = 'running';
+  def.orbs.forEach((o, i) => {
+    if (o.x > x) s.orbs[i] = { poppedAt: null, by: [] };
+  });
+  // The scroll waits for the next hold, so a retry never starts mid-fall.
+  s.camX = x - PUFF_SCREEN_X;
+  s.phase = 'waiting';
+  s.held = false;
   s.respawnAt = null;
   s.freezeUntil = s.t + WHEEL_FREEZE;
-  s.stuckFor = 0;
-  s.furthestX = x;
-  s.furthestAt = s.t;
-  s.touching = [];
   s.failCause = null;
-  events.push({ type: 'respawn', rewind: s.rewinding });
-  s.rewinding = false;
+  events.push({ type: 'respawn' });
 }
 
-function updateProps(sim: Sim, dt: number, events: SimEvent[]): void {
-  const { def, s } = sim;
+// ---------- Puffs ----------
+
+function spawnPuff(sim: Sim, x: number, y: number, base: number, vx: number, vy: number, size: number): Puff | null {
+  const B = b2();
+  const { world, s } = sim;
+  const used = new Set(s.puffs.map((p) => p.body));
+  const slot = world.puffBodies.findIndex((_, i) => !used.has(i));
+  if (slot < 0) return null;
+  const body = world.puffBodies[slot]!;
+  const pos = new B.b2Vec2(m(x), m(y));
+  const rot = B.b2MakeRot(0);
+  B.b2Body_SetTransform(body, pos, rot);
+  pos.delete();
+  rot.delete();
+  world.vec.Set(m(vx), m(vy));
+  B.b2Body_SetLinearVelocity(body, world.vec);
+  B.b2Body_Enable(body);
+  const puff: Puff = { id: s.nextId++, body: slot, x, y, vx, vy, pvx: vx, pvy: vy, r: base * size, base, size, sizeUntil: 0, bonk: 0, lastBump: -Infinity };
+  setRadius(sim, puff, base * size);
+  return puff;
+}
+
+function setRadius(sim: Sim, puff: Puff, r: number): void {
+  const B = b2();
+  const { world } = sim;
+  puff.r = r;
+  const c = new B.b2Circle();
+  c.radius = m(r);
+  B.b2Shape_SetCircle(world.puffShapes[puff.body]!, c);
+  c.radius = m(Math.max(2, r - SENSOR_GRACE));
+  B.b2Shape_SetCircle(world.puffSensors[puff.body]!, c);
+  c.delete();
+  B.b2Body_UpdateMassFromShapes(world.puffBodies[puff.body]!);
+}
+
+// Hold to puff up; the drift carries Puff forward to its spot on screen. Clones copy the input a
+// beat late and keep to their place in the flock. Forces scale with mass, so a swollen or shrunken
+// Puff handles exactly the same: it only pushes harder or softer.
+function drivePuffs(sim: Sim): void {
+  const B = b2();
+  const { s, world } = sim;
+  const lead = s.puffs[0];
+  if (!lead) return;
+  s.puffs.forEach((p, i) => {
+    const body = world.puffBodies[p.body]!;
+    const mass = B.b2Body_GetMass(body);
+    let held = s.held;
+    let ay = 0;
+    let targetVx: number;
+    if (i === 0) {
+      const off = (PUFF_SCREEN_X - (p.x - s.camX)) / DRIFT.ease;
+      targetVx = sim.speed * (1 + clamp(off, -DRIFT.slow, DRIFT.catchUp));
+    } else {
+      held = s.history[Math.max(0, s.history.length - 1 - (CLONE_DELAY_STEPS + i - 1))] ?? false;
+      const slot = SLOTS[i] ?? SLOTS[SLOTS.length - 1]!;
+      targetVx = clamp(lead.vx + 4 * (lead.x + slot.dx - p.x), 0, sim.speed * 2);
+      ay -= 3 * (p.y - (lead.y + slot.dy)); // a gentle pull back to its place in the flock
+      const apart = p.y - lead.y;
+      const over = Math.abs(apart) - CLONE_SPREAD / 2;
+      // Clones drift, but never far past 1.5 Puff-widths from the leader.
+      if (over > 0) ay += -Math.sign(apart) * 60 * over + 6 * (lead.vy - p.vy);
+    }
+    if (held) ay -= PHYSICS.lift;
+    const ax = clamp(DRIFT.pull * (targetVx - p.vx), -DRIFT.accel, DRIFT.accel);
+    world.vec.Set((mass * ax) / PT, (mass * ay) / PT);
+    B.b2Body_ApplyForceToCenter(body, world.vec, true);
+  });
+}
+
+function readBack(sim: Sim, dt: number): void {
+  const B = b2();
+  const { s, world, def } = sim;
+  for (const p of s.puffs) {
+    const body = world.puffBodies[p.body]!;
+    const pos = B.b2Body_GetPosition(body);
+    const vel = B.b2Body_GetLinearVelocity(body);
+    p.pvx = p.vx;
+    p.pvy = p.vy;
+    p.x = pos.x * PT;
+    p.y = pos.y * PT;
+    p.vx = vel.x * PT;
+    p.vy = vel.y * PT;
+    pos.delete();
+    vel.delete();
+    if (Math.abs(p.vy) > PHYSICS.maxVy) {
+      p.vy = Math.sign(p.vy) * PHYSICS.maxVy;
+      world.vec.Set(m(p.vx), m(p.vy));
+      B.b2Body_SetLinearVelocity(body, world.vec);
+    }
+    p.bonk = Math.max(0, p.bonk - dt);
+  }
+  s.pebbles.forEach((st, i) => {
+    if (st.gone || st.jammed) return;
+    const body = world.pebbles[i]!;
+    const pos = B.b2Body_GetPosition(body);
+    const rot = B.b2Body_GetRotation(body);
+    st.x = pos.x * PT;
+    st.y = pos.y * PT;
+    st.angle = B.b2Rot_GetAngle(rot);
+    pos.delete();
+    rot.delete();
+    if (st.x > def.length + 200) {
+      st.gone = true;
+      B.b2Body_Disable(body);
+    }
+  });
+  def.wheels.forEach((_, i) => {
+    const rot = B.b2Body_GetRotation(world.wheels[i]!);
+    s.wheels[i]!.angle = B.b2Rot_GetAngle(rot);
+    rot.delete();
+  });
+}
+
+// ---------- Props ----------
+
+function driveProps(sim: Sim, dt: number, events: SimEvent[]): void {
+  const B = b2();
+  const { def, s, world } = sim;
 
   def.seesaws.forEach((sw, i) => {
     const st = s.seesaws[i]!;
+    const joint = world.joints[i];
+    if (!joint) return; // the dud never moves
     const initial = sw.high === 'right' ? 1 : -1;
-    if (sw.mode === 'return' && st.side !== initial && s.t - st.flippedAt >= (sw.returnAfter ?? 3)) {
-      flip(sim, i, events, false);
-      events.push({ type: 'drop', id: sw.id });
-    }
-    if (sw.mode === 'beat') {
-      const beat = sw.beat ?? 1.5;
-      const want = Math.floor(s.t / beat) % 2 === 0 ? initial : (-initial as 1 | -1);
-      if (want !== st.side) {
-        flip(sim, i, events, false);
-        events.push({ type: 'knock', id: sw.id });
+    const mode = sw.mode ?? 'free';
+    // A positive angle raises the right end; Box2D measures the other way round.
+    st.angle = -B.b2RevoluteJoint_GetCurrentAngle(joint);
+    const side = st.side;
+    if (side === 1 && st.angle < -TILT / 2) st.side = -1;
+    if (side === -1 && st.angle > TILT / 2) st.side = 1;
+    if (st.side !== side) {
+      st.flips += 1;
+      st.flippedAt = s.t;
+      if (mode === 'free' || (mode === 'return' && !st.returning)) {
+        s.tips += 1;
+        events.push({ type: 'tip', id: sw.id });
       }
     }
-    const target = st.side * TILT;
-    const rate = (TILT * 2) / 0.25;
-    st.angle += clamp(target - st.angle, -rate * dt, rate * dt);
+    if (mode === 'return') {
+      if (!st.returning && st.side !== initial && s.t - st.flippedAt >= (sw.returnAfter ?? 3)) {
+        st.returning = true;
+        B.b2RevoluteJoint_EnableMotor(joint, true);
+        B.b2RevoluteJoint_SetMaxMotorTorque(joint, KNOCK_TORQUE);
+        B.b2RevoluteJoint_SetTargetMotorSpeed(joint, -initial * KNOCK_SPEED);
+        B.b2Joint_WakeBodies(joint); // a log at rest sleeps, and a sleeping motor does nothing
+        events.push({ type: 'drop', id: sw.id });
+      } else if (st.returning && st.side === initial && Math.abs(st.angle - initial * TILT) < 0.02) {
+        st.returning = false;
+        B.b2RevoluteJoint_EnableMotor(joint, false);
+      }
+    }
+    if (sw.heavy) {
+      // Only a swollen Puff's weight frees the hinge. Physics does the rest.
+      const free = s.puffs.some((p) => p.r > p.base * 1.4 && onPlank(sw, st.angle, p));
+      B.b2RevoluteJoint_SetMaxMotorTorque(joint, free ? 0 : KNOCK_TORQUE);
+      if (free) B.b2Joint_WakeBodies(joint);
+    }
+    if (mode === 'beat') {
+      const n = Math.floor(s.t / (sw.beat ?? 1.5));
+      const want = n % 2 === 0 ? initial : -initial;
+      if (n !== st.beat || s.t <= dt) {
+        st.beat = n;
+        if (want !== st.side) events.push({ type: 'knock', id: sw.id });
+        B.b2RevoluteJoint_SetTargetMotorSpeed(joint, -want * KNOCK_SPEED);
+        B.b2Joint_WakeBodies(joint);
+      }
+    }
   });
 
   def.gates.forEach((g, i) => {
     const st = s.gates[i]!;
     const link = s.seesaws[def.seesaws.findIndex((sw) => sw.id === g.link)]!;
-    if (g.mode === 'latch') {
-      if (link.flips > 0) {
-        if (st.open === 0) events.push({ type: 'gate', id: g.id });
+    const was = st.open;
+    if (link.flips > 0) {
+      if (g.mode === 'latch') {
         st.open = Math.min(1, st.open + dt / 0.6);
+      } else {
+        // Timed: once open, it waits for Puff, then drifts shut over closeTime. It never closes
+        // onto a Puff underneath it.
+        const lead = s.puffs[0];
+        if (st.closingAt === null && lead && st.open >= 1 && g.x - lead.x <= (g.closeAhead ?? 260)) st.closingAt = s.t;
+        if (st.closingAt === null) st.open = Math.min(1, st.open + dt / 0.3);
+        else if (!puffUnder(sim, g.x, g.x + GATE_WIDTH, gateBottom(sim, i))) st.open = Math.max(0, st.open - dt / (g.closeTime ?? 3));
       }
-    } else if (link.flips > 0) {
-      // Timed: once open, it waits for Puff, then drifts shut over closeTime.
-      if (st.open === 0 && st.closingAt === null) events.push({ type: 'gate', id: g.id });
-      const lead = s.puffs[0];
-      if (st.closingAt === null && lead && st.open >= 1 && g.x - lead.x <= (g.closeAhead ?? 260)) st.closingAt = s.t;
-      st.open = st.closingAt === null ? Math.min(1, st.open + dt / 0.3) : Math.max(0, 1 - (s.t - st.closingAt) / (g.closeTime ?? 3));
     }
+    if (was === 0 && st.open > 0) events.push({ type: 'gate', id: g.id });
+    const lift = st.open * (FLOOR - g.openBottom);
+    moveY(sim, world.gates[i]!, st.lift - lift, dt);
+    st.lift = lift;
   });
 
   def.curtains.forEach((c, i) => {
@@ -373,202 +816,136 @@ function updateProps(sim: Sim, dt: number, events: SimEvent[]): void {
     const swi = def.seesaws.findIndex((sw) => sw.id === c.link);
     const initial = def.seesaws[swi]!.high === 'right' ? 1 : -1;
     const lifted = s.seesaws[swi]!.side !== initial;
-    st.open = lifted ? Math.min(1, st.open + dt / 0.35) : Math.max(0, st.open - dt / 0.5);
+    const next = lifted ? Math.min(1, st.open + dt / 0.35) : Math.max(0, st.open - dt / 0.5);
+    // A falling curtain waits rather than crush a Puff into the floor.
+    if (next >= st.open || !puffUnder(sim, c.x0, c.x1, curtainBottom(sim, i))) st.open = next;
+    const lift = st.open * (c.closedBottom - c.openBottom);
+    moveY(sim, world.curtains[i]!, st.lift - lift, dt);
+    st.lift = lift;
   });
 
   def.wheels.forEach((w, i) => {
-    const st = s.wheels[i]!;
-    if (st.jammed || s.t < s.freezeUntil) return;
-    st.angle += ((w.spin * Math.PI) / 180) * dt;
+    const spinning = !s.wheels[i]!.jammed && s.t >= s.freezeUntil;
+    B.b2Body_SetAngularVelocity(world.wheels[i]!, spinning ? (w.spin * Math.PI) / 180 : 0);
   });
 
-  movePebbles(sim, dt, events);
+  def.crushers.forEach((c, i) => {
+    const st = s.crushers[i]!;
+    const next = crusherState(def, c, s.t);
+    if (next.warn && !st.warn) events.push({ type: 'dust', id: c.id });
+    if (next.drop >= 1 && st.drop < 1) events.push({ type: 'slam', id: c.id });
+    moveY(sim, world.crushers[i]!, (next.drop - st.drop) * (FLOOR - c.rest), dt);
+    s.crushers[i] = next;
+  });
 }
 
-function flip(sim: Sim, i: number, events: SimEvent[], byPlayer: boolean): void {
-  const { def, s } = sim;
-  const sw = def.seesaws[i]!;
-  const st = s.seesaws[i]!;
-  // Anything resting against the end that rises gets flung off it. Test against the plank where it lies now.
-  const ends = seesawEnds(sw, st.angle);
-  st.side = -st.side as 1 | -1;
-  st.flippedAt = s.t;
-  st.flips += 1;
-  if (byPlayer) {
-    s.tips += 1;
-    events.push({ type: 'tip', id: sw.id });
+// Is this Puff resting on (or pressing into) the log?
+function onPlank(sw: SeesawDef, angle: number, p: Puff): boolean {
+  const e = seesawEnds(sw, angle);
+  const dx = e.bx - e.ax;
+  const dy = e.by - e.ay;
+  const k = clamp(((p.x - e.ax) * dx + (p.y - e.ay) * dy) / (dx * dx + dy * dy), 0, 1);
+  return Math.hypot(p.x - (e.ax + dx * k), p.y - (e.ay + dy * k)) < p.r + PLANK_HALF_THICK + 3;
+}
+
+// Move a kinematic body down by dy pt (up when negative) over this step.
+function moveY(sim: Sim, body: b2BodyId, dy: number, dt: number): void {
+  sim.world.vec.Set(0, m(dy) / dt);
+  b2().b2Body_SetLinearVelocity(body, sim.world.vec);
+}
+
+// Is a Puff right under something coming down at `bottom` between x0 and x1?
+function puffUnder(sim: Sim, x0: number, x1: number, bottom: number): boolean {
+  return sim.s.puffs.some((p) => p.x + p.r > x0 - 2 && p.x - p.r < x1 + 2 && p.y + p.r > bottom && p.y - p.r < bottom + 6);
+}
+
+// ---------- Contacts ----------
+
+function readEvents(sim: Sim, events: SimEvent[], lost: { puff: Puff; cause: Cause }[]): void {
+  const B = b2();
+  const { s, world, def } = sim;
+  const bySlot = (slot: number) => s.puffs.find((p) => p.body === slot);
+
+  // Hazards: a Puff's sensor, its body less a little fuzz, touched something deadly.
+  const sensed = B.b2World_GetSensorEvents(world.id);
+  for (let k = 0; k < sensed.beginCount; k++) {
+    const e = sensed.GetBeginEvent(k);
+    const a = world.tags.get(e.sensorShapeId.index1);
+    const b = world.tags.get(e.visitorShapeId.index1);
+    if (a?.kind !== 'sensor' || b?.kind !== 'hazard') continue;
+    const puff = bySlot(a.slot);
+    if (puff && !lost.some((l) => l.puff === puff)) lost.push({ puff, cause: b.cause });
   }
-  const tipX = st.side > 0 ? ends.bx : ends.ax;
-  const tipY = st.side > 0 ? ends.by : ends.ay;
-  s.pebbles.forEach((p, pi) => {
-    if (p.gone || p.jammed) return;
-    const r = def.pebbles[pi]!.r;
-    // On the rising end, or on the ground just past it where the log's knock reaches.
-    const touching = circleCapsule(p.x, p.y, r + 6, ends.ax, ends.ay, ends.bx, ends.by, PLANK_HALF_THICK);
-    const knocked = Math.hypot(p.x - tipX, p.y - tipY) < FLING_REACH;
-    if ((touching || knocked) && (p.x - sw.px) * st.side > 0) {
-      p.vy = -280;
-      p.vx = st.side * 160;
-      p.flungUntil = s.t + FLING_CLEAR;
+  sensed.delete();
+
+  const contacts = B.b2World_GetContactEvents(world.id);
+  for (let k = 0; k < contacts.beginCount; k++) {
+    const e = contacts.GetBeginEvent(k);
+    const a = world.tags.get(e.shapeIdA.index1);
+    const b = world.tags.get(e.shapeIdB.index1);
+    e.delete();
+    if (!a || !b) continue;
+    for (const [one, other] of [[a, b], [b, a]] as const) {
+      if (one.kind === 'pebble' && other.kind === 'hazard' && other.wheel !== undefined) {
+        // A pebble rolling into a jammable wheel's axle stops it for good.
+        const w = def.wheels[other.wheel]!;
+        const ws = s.wheels[other.wheel]!;
+        const ps = s.pebbles[one.index]!;
+        if (w.jammable && !ws.jammed && !ps.jammed) {
+          ws.jammed = true;
+          ps.jammed = true;
+          B.b2Body_SetType(world.pebbles[one.index]!, B.b2BodyType.b2_staticBody);
+          events.push({ type: 'jam', id: w.id });
+        }
+      }
+      if (one.kind === 'puff') {
+        const puff = bySlot(one.slot);
+        if (!puff) continue;
+        if (other.kind === 'pebble' && !s.pebbles[other.index]!.jammed) events.push({ type: 'push', id: def.pebbles[other.index]!.id });
+        bump(sim, puff, events);
+      }
     }
-  });
+  }
+  contacts.delete();
 }
 
-// ---------- Puffs ----------
-
-function movePuff(sim: Sim, puff: Puff, i: number, dt: number, events: SimEvent[]): void {
+// A fresh touch that costs real speed is a bump: a squash, a thud, and a buzz.
+function bump(sim: Sim, puff: Puff, events: SimEvent[]): void {
   const { s } = sim;
-  const lead = s.puffs[0]!;
-  const slot = SLOTS[i] ?? SLOTS[SLOTS.length - 1]!;
-  let vx = sim.speed;
-  let held = s.held;
-
-  if (i > 0) {
-    const delay = CLONE_DELAY_STEPS + (i - 1);
-    held = s.history[Math.max(0, s.history.length - 1 - delay)] ?? false;
-    vx = clamp(sim.speed + 4 * (lead.x + slot.dx - puff.x), 0, sim.speed * 2);
-  }
-
-  puff.bonk = Math.max(0, puff.bonk - dt);
-  puff.x += vx * dt;
-  let accel = PHYSICS.gravity - (held ? PHYSICS.lift : 0);
-  if (i > 0) accel -= 3 * (puff.y - (lead.y + slot.dy)); // a gentle pull back to its place in the flock
-  puff.vy = clamp(puff.vy + accel * dt, -PHYSICS.maxVy, PHYSICS.maxVy);
-  puff.y += puff.vy * dt;
-  if (i > 0 && Math.abs(puff.y - lead.y) > CLONE_SPREAD / 2) {
-    // Clones drift, but never more than 1.5 Puff-widths from the leader.
-    puff.y = lead.y + Math.sign(puff.y - lead.y) * (CLONE_SPREAD / 2);
-    puff.vy = lead.vy;
-  }
-
-  const { roofY, floorY } = PLAYFIELD;
-  if (puff.y < roofY + puff.r) {
-    puff.y = roofY + puff.r;
-    puff.vy = Math.max(0, puff.vy);
-  }
-  if (puff.y > floorY - puff.r) {
-    puff.y = floorY - puff.r;
-    puff.vy = Math.min(0, puff.vy);
-  }
-
-  const contacts = new Set<string>();
-  const hit = (key: string, c: Contact | null, bounce = 0) => {
-    if (!c) return false;
-    resolve(puff, c, bounce);
-    if (Math.abs(c.nx) > 0.6 && c.nx < 0) {
-      contacts.add(key);
-      const fresh = !s.touching.includes(`${puff.id}:${key}`) && s.t - (puff.lastBump ?? -Infinity) > BUMP_COOLDOWN;
-      if (fresh) {
-        puff.x -= BUMP_BACK;
-        puff.bonk = 0.25;
-        puff.lastBump = s.t;
-        s.bumps += 1;
-        events.push({ type: 'bump', x: puff.x, y: puff.y, leader: i === 0 });
-      }
-    }
-    return true;
-  };
-
-  const near = (x0: number, x1: number) => x1 > puff.x - 80 && x0 < puff.x + 80;
-  const { def } = sim;
-
-  for (const r of def.rects) {
-    if (near(r.x0, r.x1)) hit(r.id, circleRect(puff.x, puff.y, puff.r, r.x0, r.y0, r.x1, r.y1));
-  }
-  for (const h of def.humps) {
-    if (!near(h.cx - h.width / 2, h.cx + h.width / 2)) continue;
-    const c = humpCircle(h.width, h.height);
-    hit(h.id, circleCircle(puff.x, puff.y, puff.r, h.cx, c.cy, c.r), PHYSICS.bounce);
-  }
-  def.seesaws.forEach((sw, si) => {
-    if (!near(sw.px - sw.half, sw.px + sw.half)) return;
-    const st = s.seesaws[si]!;
-    const e = seesawEnds(sw, st.angle);
-    const c = circleCapsule(puff.x, puff.y, puff.r, e.ax, e.ay, e.bx, e.by, PLANK_HALF_THICK);
-    // Logs are one-way: Puff lands on top, but rises up through one from below. Otherwise the
-    // narrowing gap under a raised end could wedge Puff against the ground with no way out.
-    if (c && c.ny < -0.3 && c.depth < ONE_WAY_DEPTH) {
-      const settled = s.t - st.flippedAt >= TIP_COOLDOWN;
-      const landing = c.ny < -0.5 && puff.vy > 40 && settled;
-      const onHigh = (c.px - sw.px) * st.side > sw.half * 0.25;
-      const mode = sw.mode ?? 'free';
-      if (landing && onHigh && (mode === 'free' || mode === 'return')) flip(sim, si, events, true);
-      if (landing && mode === 'dud') {
-        resolve(puff, c, 0);
-        puff.vy = -260; // the wrong log just bounces you
-        return;
-      }
-      hit(sw.id, c);
-    }
-    hit(`${sw.id}-fulcrum`, circleRect(puff.x, puff.y, puff.r, sw.px - FULCRUM_HALF, sw.py + 4, sw.px + FULCRUM_HALF, sw.baseY ?? PLAYFIELD.floorY));
-  });
-  def.gates.forEach((g, gi) => {
-    if (!near(g.x, g.x + GATE_WIDTH)) return;
-    hit(g.id, circleRect(puff.x, puff.y, puff.r, g.x, PLAYFIELD.roofY, g.x + GATE_WIDTH, gateBottom(sim, gi)));
-  });
-  def.pebbles.forEach((pd, pi) => {
-    const p = s.pebbles[pi]!;
-    if (p.gone) return;
-    const c = circleCircle(puff.x, puff.y, puff.r, p.x, p.y, pd.r);
-    if (!c) return;
-    resolve(puff, c, 0);
-    if (!p.jammed && c.nx < 0) {
-      // Bumping a pebble rolls it ahead.
-      if (p.vx < sim.speed * 1.2) events.push({ type: 'push', id: pd.id });
-      p.vx = Math.max(p.vx, sim.speed * 1.25);
-      p.x += c.depth * 0.5;
-    }
-  });
-
-  const prefix = `${puff.id}:`;
-  s.touching = s.touching.filter((k) => !k.startsWith(prefix));
-  for (const key of contacts) s.touching.push(prefix + key);
+  if (s.t - puff.lastBump < BUMP_COOLDOWN) return;
+  if (Math.hypot(puff.vx - puff.pvx, puff.vy - puff.pvy) < BUMP_SPEED) return;
+  puff.lastBump = s.t;
+  puff.bonk = 0.25;
+  s.bumps += 1;
+  events.push({ type: 'bump', x: puff.x, y: puff.y, leader: s.puffs[0] === puff });
 }
 
-// Push a Puff out of a shape. Puffs move forward at the scroll speed, so a push backward costs ground.
-// Only vertical speed into the surface is cancelled. Forward speed is fixed, so turning it into vertical
-// speed would pin Puff to the floor beside anything round, like a pebble or a log end.
-function resolve(puff: Puff, c: Contact, bounce: number): void {
-  if (Math.abs(c.nx) >= SIDE_CONTACT) {
-    // A side-on touch just pushes Puff straight back, so it can still climb or drop along the obstacle.
-    puff.x += c.depth / c.nx;
-    return;
-  }
-  puff.x += c.nx * c.depth;
-  puff.y += c.ny * c.depth;
-  const vn = puff.vy * c.ny;
-  if (vn < 0) puff.vy -= (1 + bounce) * vn * c.ny;
+// ---------- Scroll ----------
+
+function scroll(sim: Sim, dt: number): void {
+  const { s, def } = sim;
+  if (s.t >= s.lingerUntil) s.camX += sim.speed * dt;
+  const front = Math.max(...s.puffs.map((p) => p.x));
+  s.camX = Math.min(Math.max(s.camX, front - CAM_LEAD), def.length - SCREEN.width);
 }
 
-function hazardAt(sim: Sim, puff: Puff): Cause | null {
-  const { def, s } = sim;
-  const r = puff.r - 3; // a little forgiveness on spikes
-  for (const b of def.briars) {
-    // Only the spikes under the Puff can touch it.
-    const w = b.width ?? 20;
-    const first = Math.max(0, Math.floor((puff.x - r - b.x0) / w));
-    const last = Math.min(b.spikes.length - 1, Math.floor((puff.x + r - b.x0) / w));
-    const dir = b.side === 'up' ? -1 : 1;
-    for (let k = first; k <= last; k++) {
-      const x = b.x0 + k * w;
-      if (circleTriangle(puff.x, puff.y, r, x, b.base, x + w, b.base, x + w / 2, b.base + dir * b.spikes[k]!)) return 'briar';
+// ---------- Pickups ----------
+
+function resize(sim: Sim, dt: number, events: SimEvent[]): void {
+  const { s } = sim;
+  let wore = false;
+  for (const p of s.puffs) {
+    if (p.size !== 1 && s.t >= p.sizeUntil) {
+      p.size = 1;
+      wore = true;
+    }
+    const want = p.base * p.size;
+    if (Math.abs(p.r - want) > 0.01) {
+      const rate = SIZE.rate * p.base * dt;
+      setRadius(sim, p, p.r + clamp(want - p.r, -rate, rate));
     }
   }
-  for (let i = 0; i < def.curtains.length; i++) {
-    const c = def.curtains[i]!;
-    if (circleRect(puff.x, puff.y, r, c.x0, PLAYFIELD.roofY, c.x1, curtainBottom(sim, i))) return 'briar';
-  }
-  for (let i = 0; i < def.wheels.length; i++) {
-    const w = def.wheels[i]!;
-    const dx = puff.x - w.cx;
-    const dy = puff.y - w.cy;
-    const d = Math.hypot(dx, dy);
-    if (d >= w.r + r) continue;
-    if (d < wheelCore(w) + r) return 'thornwheel';
-    const inGap = w.missingTooth && Math.abs(angleDiff(Math.atan2(dy, dx), s.wheels[i]!.angle)) < TOOTH_GAP;
-    if (!inGap) return 'thornwheel';
-  }
-  return null;
+  if (wore) events.push({ type: 'unsize' });
 }
 
 function collectPickups(sim: Sim, events: SimEvent[]): void {
@@ -597,12 +974,31 @@ function collectPickups(sim: Sim, events: SimEvent[]): void {
       }
       st.splitBy.push(puff.id);
       if (s.puffs.length >= MAX_PUFFS) continue;
-      const twin: Puff = { id: s.nextId++, x: puff.x - 6, y: puff.y + (s.puffs.length % 2 ? 14 : -14), vy: puff.vy, r: CLONE_RADIUS, bonk: 0 };
+      const twin = spawnPuff(sim, puff.x - 6, puff.y + (s.puffs.length % 2 ? 14 : -14), CLONE_RADIUS, puff.vx, puff.vy, puff.size);
+      if (!twin) continue;
+      twin.sizeUntil = puff.sizeUntil;
       st.splitBy.push(twin.id);
       s.puffs.push(twin);
       made += 1;
     }
     if (made) events.push({ type: 'split', x: b.x, y: b.y, count: s.puffs.length });
+  });
+
+  // Swell and Shrink: every Puff touching the orb as it pops changes size for a while.
+  def.orbs.forEach((o, i) => {
+    const st = s.orbs[i]!;
+    if (st.poppedAt !== null && s.t - st.poppedAt > POP_WINDOW) return;
+    for (const puff of s.puffs) {
+      if (st.by.includes(puff.id)) continue;
+      if (Math.hypot(puff.x - o.x, puff.y - o.y) >= puff.r + ORB_R + 4) continue;
+      if (st.poppedAt === null) {
+        st.poppedAt = s.t;
+        events.push({ type: 'resize', id: o.id, kind: o.kind });
+      }
+      st.by.push(puff.id);
+      puff.size = o.kind === 'swell' ? SIZE.swell : SIZE.shrink;
+      puff.sizeUntil = s.t + (o.time ?? SIZE.time);
+    }
   });
 }
 
@@ -615,98 +1011,15 @@ function checkBlooms(sim: Sim, events: SimEvent[]): void {
     // The checkpoint saves your clone count. Respawning never takes clones away.
     s.checkpoint = { x: b.x, y: BLOOM_SPAWN_Y, count: s.puffs.length };
     events.push({ type: 'checkpoint', id: b.id });
+    // 1-1: the scroll lingers 0.5s on the first bloom so the player notices it.
+    if (def.lingerAtBloom && !s.lingered) {
+      s.lingered = true;
+      s.lingerUntil = s.t + 0.5;
+    }
   });
 }
 
-// If Puff is pressed against a closed gate for a while, it drifts back to try again. As a safety net,
-// the same happens after a long stretch with no forward progress at all, so nothing can softlock a run.
-function checkStuck(sim: Sim, dt: number, events: SimEvent[]): void {
-  const { def, s } = sim;
-  const lead = s.puffs[0]!;
-  const blocked = def.gates.some((g, i) => s.touching.includes(`${lead.id}:${g.id}`) && s.gates[i]!.open < 0.6);
-  s.stuckFor = blocked ? s.stuckFor + dt : 0;
-  // Progress means real ground, not the float jitter of resting against a wall.
-  if (lead.x >= s.furthestX + PROGRESS_STEP) {
-    s.furthestX = lead.x;
-    s.furthestAt = s.t;
-  }
-  if (s.stuckFor >= STUCK_REWIND || s.t - s.furthestAt >= STALL_REWIND) {
-    s.stuckFor = 0;
-    s.phase = 'respawning';
-    s.respawnAt = s.t + RESPAWN_TIME;
-    s.rewinding = true;
-    events.push({ type: 'lost', x: lead.x, y: lead.y, cause: 'stranded', leader: true, left: s.puffs.length });
-  }
+function clamp(v: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, v));
 }
 
-// ---------- Pebbles ----------
-
-function movePebbles(sim: Sim, dt: number, events: SimEvent[]): void {
-  const { def, s } = sim;
-  s.pebbles.forEach((p, i) => {
-    if (p.gone || p.jammed) return;
-    const r = def.pebbles[i]!.r;
-    if (p.vx === 0 && p.vy === 0 && restingSupported(sim, p.x, p.y, r)) return;
-    p.vy = Math.min(p.vy + PEBBLE_GRAVITY * dt, 700);
-    p.x += p.vx * dt;
-    p.y += p.vy * dt;
-
-    const push = (c: Contact | null) => {
-      if (!c) return false;
-      p.x += c.nx * c.depth;
-      p.y += c.ny * c.depth;
-      const vn = p.vx * c.nx + p.vy * c.ny;
-      if (vn < 0) {
-        // Pebbles are heavy: they stop dead against a wall instead of bouncing back.
-        p.vx -= vn * c.nx;
-        p.vy -= vn * c.ny;
-      }
-      return true;
-    };
-
-    if (p.y > PLAYFIELD.floorY - r) {
-      p.y = PLAYFIELD.floorY - r;
-      p.vy = 0;
-    }
-    const flying = s.t < p.flungUntil;
-    if (!flying) for (const rect of def.rects) push(circleRect(p.x, p.y, r, rect.x0, rect.y0, rect.x1, rect.y1));
-    for (const h of def.humps) {
-      const c = humpCircle(h.width, h.height);
-      push(circleCircle(p.x, p.y, r, h.cx, c.cy, c.r));
-    }
-    def.seesaws.forEach((sw, si) => {
-      const st = s.seesaws[si]!;
-      const e = seesawEnds(sw, st.angle);
-      const c = circleCapsule(p.x, p.y, r, e.ax, e.ay, e.bx, e.by, PLANK_HALF_THICK);
-      const settled = s.t - st.flippedAt >= TIP_COOLDOWN;
-      if (c && settled && c.ny < -0.5 && p.vy > 40 && (c.px - sw.px) * st.side > sw.half * 0.25 && (sw.mode ?? 'free') === 'free') {
-        flip(sim, si, events, true); // props can move other props
-      }
-      push(c);
-      push(circleRect(p.x, p.y, r, sw.px - FULCRUM_HALF, sw.py + 4, sw.px + FULCRUM_HALF, sw.baseY ?? PLAYFIELD.floorY));
-    });
-    def.gates.forEach((g, gi) => push(circleRect(p.x, p.y, r, g.x, PLAYFIELD.roofY, g.x + GATE_WIDTH, gateBottom(sim, gi))));
-    def.wheels.forEach((w, wi) => {
-      if (Math.hypot(p.x - w.cx, p.y - w.cy) < w.r + r && w.jammable && !s.wheels[wi]!.jammed) {
-        s.wheels[wi]!.jammed = true;
-        p.jammed = true;
-        events.push({ type: 'jam', id: w.id });
-      }
-    });
-
-    // Rolling friction along the ground.
-    const grounded = p.y >= PLAYFIELD.floorY - r - 0.5;
-    if (grounded) p.vx *= Math.max(0, 1 - 0.6 * dt);
-    if (Math.abs(p.vx) < 4 && grounded) p.vx = 0;
-    if (p.x > def.length + 200) p.gone = true;
-  });
-}
-
-// A pebble placed at rest stays put until something pushes it.
-function restingSupported(sim: Sim, x: number, y: number, r: number): boolean {
-  const { def } = sim;
-  if (y >= PLAYFIELD.floorY - r - 1) return true;
-  return def.rects.some((rect) => x >= rect.x0 && x <= rect.x1 && Math.abs(rect.y0 - (y + r)) < 2) ||
-    def.humps.some((h) => Math.abs(x - h.cx) < 4) ||
-    def.seesaws.some((sw) => Math.abs(x - sw.px) <= sw.half + 4 && y < sw.py + 40 && y > sw.py - 60);
-}

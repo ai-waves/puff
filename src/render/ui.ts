@@ -39,8 +39,9 @@ export interface ButtonOpts {
 
 // Pill button. Primary is filled; Secondary is a thin outline.
 // Containers report no size here: Phaser offsets a sized container's hit area by half its size,
-// so hit areas are explicit rectangles in container space and the width travels as `w`.
-export type Widget = Phaser.GameObjects.Container & { w: number };
+// so hit areas are explicit rectangles in container space and the width travels as `span`.
+// (Not `w`: that's Phaser's fourth position coordinate, and setPosition(x, y) resets it to 0.)
+export type Widget = Phaser.GameObjects.Container & { span: number };
 
 export function button(scene: Scene, x: number, y: number, text: string, o: ButtonOpts): Widget {
   const h = o.h ?? 52;
@@ -55,7 +56,7 @@ export function button(scene: Scene, x: number, y: number, text: string, o: Butt
   else g.lineStyle(1.5, ink, o.outlineAlpha ?? 0.6).strokeRoundedRect(-w / 2 + 0.75, -h / 2 + 0.75, w - 1.5, h - 1.5, h / 2 - 0.75);
   const c = scene.add.container(x + w / 2, y + h / 2, [g, t]);
   tappable(scene, c, w, Math.max(44, h), o.onTap);
-  return Object.assign(c, { w });
+  return Object.assign(c, { span: w });
 }
 
 export function tappable(scene: Scene, c: Phaser.GameObjects.Container, w: number, h: number, onTap: () => void): void {
@@ -113,7 +114,7 @@ export function toggle(scene: Scene, x: number, y: number, text: string, value: 
     draw();
     onChange(on);
   });
-  return Object.assign(c, { w });
+  return Object.assign(c, { span: w });
 }
 
 // Three seed dots: filled gold with an ink ring when found, an empty ring otherwise.

@@ -7,5 +7,6 @@ export default defineConfig({
   test: {
     include: levels ? ['src/**/*.slow.test.ts'] : ['src/**/*.test.ts'],
     exclude: levels ? configDefaults.exclude : [...configDefaults.exclude, 'src/**/*.slow.test.ts'],
+    setupFiles: ['./vitest.setup.ts'],
   },
 });

@@ -5,9 +5,12 @@ import { audio } from '../audio/audio';
 import { LEVELS, levelById } from '../game/levels/index';
 import { recordClear } from '../game/progress';
 import {
+  boulderPoints,
   briarTriangles,
   createSim,
+  crusherBottom,
   curtainBottom,
+  destroySim,
   gateBottom,
   humpCircle,
   retryFromCheckpoint,
@@ -22,7 +25,7 @@ import {
 } from '../game/sim';
 import { circleTriangle } from '../game/geometry';
 import type { LevelDef, RectDef } from '../game/types';
-import { drawBloom, drawBubble, drawBurrow, drawPuff, drawSeed, drawSky, drawSpikes, drawSun, drawWheel, glow, type PuffState } from '../render/art';
+import { drawBloom, drawBoulder, drawBubble, drawBurrow, drawCrusher, drawOrb, drawPuff, drawSeed, drawSky, drawSpikes, drawSun, drawWheel, glow, type PuffState } from '../render/art';
 import { settingsRow } from '../render/panels';
 import { button, go, iconButton, label, seedDots } from '../render/ui';
 import { services } from '../services';
@@ -52,8 +55,9 @@ interface Particle {
 }
 
 const { roofY: ROOF, floorY: FLOOR } = PLAYFIELD;
-const LEADER_SCALE = PUFF_RADIUS / 30; // Puff is 30pt across
+const LEADER_SCALE = PUFF_RADIUS / 30; // Puff is 30pt across; the art is drawn at 60pt
 const CLONE_SCALE = LEADER_SCALE * (2 / 3);
+const EDGE_SHADE = 46; // pt of shadow along the left edge, where the scroll leaves Puffs behind
 const HUD_ALPHA = 0.85; // full opacity only while something changes
 const BAR_X = 322;
 const BAR_W = 200;
@@ -65,8 +69,6 @@ export class PlayScene extends Phaser.Scene {
   private sim!: Sim;
   private acc = 0;
   private camX = 0;
-  private lingerUntil = 0;
-  private lingered = false;
   private paused = false;
   private ending = false;
   private far!: Phaser.GameObjects.Graphics;
@@ -102,9 +104,7 @@ export class PlayScene extends Phaser.Scene {
     // Only carry the title's hold over if the finger is still down after the fade.
     if (data.held && this.input.activePointer.isDown) setHeld(this.sim, true);
     this.acc = 0;
-    this.camX = this.def.startX - PUFF_SCREEN_X;
-    this.lingerUntil = 0;
-    this.lingered = false;
+    this.camX = this.sim.s.camX;
     this.paused = false;
     this.ending = false;
     this.particles = [];
@@ -150,9 +150,11 @@ export class PlayScene extends Phaser.Scene {
     audio.startLevel();
     audio.setVoices(1);
     document.addEventListener('visibilitychange', this.onVisibility);
+    const sim = this.sim;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       audio.stopLevel();
       document.removeEventListener('visibilitychange', this.onVisibility);
+      destroySim(sim); // free the Box2D world
     });
   }
 
@@ -166,7 +168,7 @@ export class PlayScene extends Phaser.Scene {
         this.acc -= SIM_STEP;
       }
     }
-    this.followCamera(dt);
+    this.camX = this.sim.s.camX; // the scroll belongs to the sim: it decides who it leaves behind
     this.tickParticles(dt);
     this.draw();
   }
@@ -213,11 +215,6 @@ export class PlayScene extends Phaser.Scene {
           break;
         case 'checkpoint':
           audio.chime();
-          // 1-1: the camera lingers 0.5s on the first bloom so the player notices it.
-          if (this.def.lingerAtBloom && !this.lingered) {
-            this.lingered = true;
-            this.lingerUntil = this.now + 0.5;
-          }
           break;
         case 'lost':
           audio.fluff();
@@ -228,9 +225,30 @@ export class PlayScene extends Phaser.Scene {
           break;
         case 'respawn':
           this.reformAt = this.now;
-          this.camX = this.leader()!.x - PUFF_SCREEN_X;
+          this.camX = this.sim.s.camX;
           audio.setVoices(this.sim.s.puffs.length);
           break;
+        case 'resize': {
+          audio.pop();
+          services.buzz('light');
+          const o = this.def.orbs.find((x) => x.id === e.id)!;
+          this.particles.push({ kind: 'ring', x: o.x, y: o.y, vx: 0, vy: 0, life: 0.35, max: 0.35, size: 20 });
+          break;
+        }
+        case 'unsize':
+          audio.tap();
+          break;
+        case 'dust':
+          break;
+        case 'slam': {
+          audio.knock();
+          services.buzz('medium');
+          const i = this.def.crushers.findIndex((c) => c.id === e.id);
+          const c = this.def.crushers[i]!;
+          this.burst('dust', c.x - c.width / 2, FLOOR - 4, 4);
+          this.burst('dust', c.x + c.width / 2, FLOOR - 4, 4);
+          break;
+        }
         case 'jam':
           audio.jam();
           break;
@@ -246,16 +264,6 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  private leader(): Puff | undefined {
-    return this.sim.s.puffs[0];
-  }
-
-  private followCamera(dt: number): void {
-    const lead = this.leader();
-    if (!lead || this.now < this.lingerUntil) return;
-    const target = lead.x - PUFF_SCREEN_X;
-    this.camX += (target - this.camX) * Math.min(1, dt * 10);
-  }
 
   // ---------- Win, fail, pause ----------
 
@@ -309,6 +317,10 @@ export class PlayScene extends Phaser.Scene {
     g.fillStyle(INK, 1).fillRect(0, SCREEN.height - 40, SCREEN.width, 40).fillEllipse(700, 440, 360, 280).fillEllipse(90, -30, 260, 220);
     if (cause === 'thornwheel') {
       drawWheel(g, 640, 170, 60, this.now);
+    } else if (cause === 'crusher') {
+      drawCrusher(g, 650, 150, 90, SCREEN.height - 40, 0, false, this.now);
+    } else if (cause === 'behind') {
+      g.fillStyle(INK, 1).fillRect(SCREEN.width - 230, 0, 230, SCREEN.height);
     } else {
       drawSpikes(g, briarTriangles({ x0: 560, base: SCREEN.height - 40, side: 'up', spikes: [70, 96, 60, 84, 66], width: 28 }), 0);
     }
@@ -323,13 +335,14 @@ export class PlayScene extends Phaser.Scene {
     const words: Record<Cause, [string, string]> = {
       thornwheel: ['Shredded.', 'The thornwheel got your last clone.'],
       briar: ['Pricked.', 'The briar got your last clone.'],
-      stranded: ['Left behind.', 'Your last clone drifted off.'],
+      crusher: ['Squashed.', 'The rootcrusher got your last clone.'],
+      behind: ['Left behind.', 'The dark caught your last clone.'],
     };
     const [title, line] = words[cause];
     const t1 = label(this, 64, 96, title, { size: 48, weight: 600 });
     const t2 = label(this, 64, 96 + 56, line, { size: 19, weight: 400, color: 0xe8cfc0 });
     const retry = button(this, 64, 232, 'Retry from checkpoint', { kind: 'primary', h: 56, size: 20, onTap: () => this.retry() });
-    const restart = button(this, 64 + retry.w + 12, 232, 'Restart', { kind: 'secondary', h: 56, onTap: () => this.scene.restart({ levelId: this.def.id }) });
+    const restart = button(this, 64 + retry.span + 12, 232, 'Restart', { kind: 'secondary', h: 56, onTap: () => this.scene.restart({ levelId: this.def.id }) });
     const block = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, 0, 0).setOrigin(0).setInteractive();
     this.failUI = this.add.container(0, 0, [block, g, t1, t2, retry, restart]).setDepth(200);
   }
@@ -433,11 +446,28 @@ export class PlayScene extends Phaser.Scene {
 
     def.seesaws.forEach((sw, i) => {
       if (!on(sw.px - sw.half, sw.px + sw.half)) return;
-      const e = seesawEnds(sw, s.seesaws[i]!.angle);
+      const angle = s.seesaws[i]!.angle;
+      const e = seesawEnds(sw, angle);
       const base = sw.baseY ?? FLOOR;
       g.fillStyle(INK, 1).fillTriangle(sw.px - 18 - cam, base, sw.px + 18 - cam, base, sw.px - cam, sw.py);
       g.lineStyle(10, INK, 1).lineBetween(e.ax - cam, e.ay, e.bx - cam, e.by);
       g.fillCircle(e.ax - cam, e.ay, 5).fillCircle(e.bx - cam, e.by, 5);
+      // Knots on a log: the low-end cradle, and the bark of a heavy log.
+      const knot = (at: number, w: number, h: number) => {
+        const along = at * sw.half;
+        const cx = sw.px + Math.cos(angle) * along - cam;
+        const cy = sw.py - Math.sin(angle) * along;
+        const pts = [[-w / 2, 0], [w / 2, 0], [w / 2, -h], [-w / 2, -h]].map(([px, py]) =>
+          new Phaser.Math.Vector2(cx + px! * Math.cos(angle) + py! * Math.sin(angle), cy - px! * Math.sin(angle) + py! * Math.cos(angle)));
+        g.fillStyle(INK, 1).fillPoints(pts, true);
+      };
+      const initial = sw.high === 'right' ? 1 : -1;
+      if (sw.cradle) knot(-initial * ((sw.half - 4) / sw.half), 8, 14);
+      if (sw.heavy) {
+        g.lineStyle(18, INK, 1).lineBetween(e.ax - cam, e.ay, e.bx - cam, e.by);
+        g.fillCircle(e.ax - cam, e.ay, 9).fillCircle(e.bx - cam, e.by, 9);
+        for (const at of [-0.55, 0.1, 0.6]) knot(at, 10, 13);
+      }
     });
     def.gates.forEach((gate, i) => {
       if (!on(gate.x, gate.x + 14)) return;
@@ -460,20 +490,36 @@ export class PlayScene extends Phaser.Scene {
       if (w.hang !== undefined) g.fillRect(w.cx - 2 - cam, w.hang, 4, w.cy - w.hang);
       drawWheel(g, w.cx - cam, w.cy, w.r, s.wheels[i]!.angle, w.missingTooth);
     });
+    // Seeds first, so a pebble resting on one hides it.
+    def.seeds.forEach((_, i) => {
+      if (s.seeds[i]) return;
+      const p = seedPosition(this.sim, i);
+      if (on(p.x - 20, p.x + 20)) drawSeed(g, p.x - cam, p.y);
+    });
     def.pebbles.forEach((p, i) => {
       const st = s.pebbles[i]!;
-      if (!st.gone && on(st.x - p.r, st.x + p.r)) g.fillStyle(INK, 1).fillCircle(st.x - cam, st.y, p.r);
+      if (st.gone || !on(st.x - p.r, st.x + p.r)) return;
+      if (!p.heavy) {
+        g.fillStyle(INK, 1).fillCircle(st.x - cam, st.y, p.r);
+        return;
+      }
+      const pts = boulderPoints({ x: 0, y: 0, r: p.r }).map((q) => ({
+        x: st.x + q.x * Math.cos(st.angle) - q.y * Math.sin(st.angle),
+        y: st.y + q.x * Math.sin(st.angle) + q.y * Math.cos(st.angle),
+      }));
+      drawBoulder(g, pts, cam);
+    });
+    def.crushers.forEach((c, i) => {
+      if (on(c.x - c.width / 2, c.x + c.width / 2)) drawCrusher(g, c.x - cam, c.width, c.height, crusherBottom(this.sim, i), ROOF, s.crushers[i]!.warn, t);
+    });
+    def.orbs.forEach((o, i) => {
+      if (s.orbs[i]!.poppedAt === null && on(o.x - 30, o.x + 30)) drawOrb(g, o.x - cam, o.y + Math.sin(t * 2 + i) * 3, o.kind);
     });
     def.blooms.forEach((b, i) => {
       if (on(b.x - 30, b.x + 30)) drawBloom(g, b.x - cam, FLOOR, s.blooms[i]!, t);
     });
     def.bubbles.forEach((b, i) => {
       if (s.bubbles[i]!.poppedAt === null && on(b.x - 30, b.x + 30)) drawBubble(g, b.x - cam, b.y + Math.sin(t * 2 + i) * 3);
-    });
-    def.seeds.forEach((_, i) => {
-      if (s.seeds[i]) return;
-      const p = seedPosition(this.sim, i);
-      if (on(p.x - 20, p.x + 20)) drawSeed(g, p.x - cam, p.y);
     });
     if (on(def.burrowX - 80, def.burrowX + 80)) drawBurrow(g, bx, FLOOR);
 
@@ -519,8 +565,10 @@ export class PlayScene extends Phaser.Scene {
       if (s.phase === 'waiting' && this.def.perch) state = 'sleep';
       else if (p.bonk > 0) state = 'bonk';
       else if (isLead ? s.held : p.vy < -30) state = 'puff';
+      // A Swell or Shrink about to wear off wobbles.
+      const ending = p.size !== 1 && p.sizeUntil - s.t < 1 ? 1 + Math.sin(t * 30) * 0.05 : 1;
       drawPuff(g, p.x - cam, p.y, {
-        scale: (isLead ? LEADER_SCALE : CLONE_SCALE) * grow,
+        scale: (p.r / 30) * grow * ending,
         state,
         sprout: isLead,
         blush: isLead,
@@ -539,6 +587,7 @@ export class PlayScene extends Phaser.Scene {
     if (def.gates.some((g, i) => x >= g.x && x <= g.x + 14 && y <= gateBottom(this.sim, i))) return true;
     if (def.curtains.some((c, i) => x >= c.x0 && x <= c.x1 && y <= curtainBottom(this.sim, i))) return true;
     if (def.wheels.some((w) => Math.hypot(x - w.cx, y - w.cy) < w.r)) return true;
+    if (def.crushers.some((c, i) => Math.abs(x - c.x) < c.width / 2 && y <= crusherBottom(this.sim, i) && y >= crusherBottom(this.sim, i) - c.height)) return true;
     return def.briars.some((b) => {
       if (b.side !== 'down' || x < b.x0 || x > b.x0 + (b.width ?? 20) * b.spikes.length) return false;
       return briarTriangles(b).some((t) => circleTriangle(x, y, 0.01, t.ax, t.ay, t.bx, t.by, t.qx, t.qy));
@@ -563,6 +612,7 @@ export class PlayScene extends Phaser.Scene {
       consider(Math.max(b.x0, Math.min(lead.x + 40, b.x0 + w)), b.side === 'up' ? b.base - tall / 2 : b.base + tall / 2);
     }
     for (const w of def.wheels) consider(w.cx, w.cy);
+    def.crushers.forEach((c, i) => consider(c.x, crusherBottom(this.sim, i)));
     def.curtains.forEach((c, i) => consider(c.x0, (ROOF + curtainBottom(this.sim, i)) / 2));
     if (!best) return { x: 1, y: 0.15 };
     const target = best as { x: number; y: number };
@@ -599,6 +649,10 @@ export class PlayScene extends Phaser.Scene {
     for (let k = Math.floor((shift - 200) / 900); k < Math.floor((shift + SCREEN.width + 200) / 900) + 1; k++) {
       g.fillCircle(k * 900 + 100 - shift, SCREEN.height + 30, 70);
       g.fillCircle(k * 900 + 560 - shift, -46, 60);
+    }
+    // The dark creeps in from the left edge: a Puff the scroll leaves there is lost.
+    if (this.sim.s.phase !== 'waiting' || this.sim.s.t > 0) {
+      for (let k = 0; k < 8; k++) g.fillStyle(INK, 0.09).fillRect(0, 0, EDGE_SHADE * (1 - k / 8), SCREEN.height);
     }
   }
 
@@ -649,9 +703,12 @@ export class PlayScene extends Phaser.Scene {
     seedDots(g, right - 54, HUD_Y, s.seeds, pale ? { ring: 0, ink: CREAM, emptyAlpha: 0.7 } : {});
 
     // 1-1 hint: a single word under the right thumb. It fades on release and only returns
-    // if the player hasn't held for 4 seconds.
-    if (def.hint) {
-      const idle = s.phase === 'waiting' || (s.phase === 'running' && t >= 0 && s.t - s.lastReleaseAt >= HINT_RETURN);
+    // if the player hasn't held for 4 seconds. Every level shows it while a re-formed Puff waits
+    // for the hold that starts the scroll again.
+    const reforming = s.phase === 'waiting' && s.t > 0;
+    if (def.hint || reforming) {
+      this.hintText.setVisible(true);
+      const idle = s.phase === 'waiting' || (def.hint && s.phase === 'running' && s.t - s.lastReleaseAt >= HINT_RETURN);
       const want = !s.held && idle ? 1 : 0;
       this.hintAlpha += (want - this.hintAlpha) * 0.15;
       const a = this.hintAlpha;

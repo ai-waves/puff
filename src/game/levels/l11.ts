@@ -2,7 +2,8 @@ import { tuning } from '../../config/tuning';
 import type { LevelDef } from '../types';
 import { FLOOR, ROOF } from './util';
 
-// 1-1 · First Light. Teach one verb: hold. About 70 seconds. No way to die.
+// 1-1 · First Light. Teach one verb: hold. About 70 seconds. Nothing here is deadly; only the
+// scrolling screen can leave Puff behind, and then it re-forms at once.
 // Positions come from the board's level map (1720px wide = 8,400pt), with x scaled by 4.88
 // and y mapped from the map's roof and ground bands onto the 14-350pt playfield.
 const { gap } = tuning(1); // 110pt, the level's narrowest gap
@@ -30,7 +31,7 @@ export const L11: LevelDef = {
   ],
   sunX: 635,
   sunY: 120,
-  deaths: 'none',
+  deaths: 'instant',
   goalClones: 1,
   hint: true,
   perch: true,
@@ -45,9 +46,6 @@ export const L11: LevelDef = {
     // Beat 04: hollow log.
     { id: 'log-roof', look: 'log', x0: 2815, x1: 3535, y0: ROOF, y1: LOG_TOP, round: { bl: 40, br: 40 } },
     { id: 'log-floor', look: 'log', x0: 2740, x1: 3610, y0: LOG_BOTTOM, y1: FLOOR, round: { tl: 50, tr: 50 } },
-    // Beat 06-07: a nook past the Mossback log's low end. The pebble sits on seed 2 against
-    // a moss lip, so Puff can't shove it aside. Tipping the log knocks the pebble away.
-    { id: 'nook-lip', look: 'lip', x0: 5198, x1: 5214, y0: 312, y1: FLOOR, round: { tl: 6, tr: 6 } },
     // Beat 08: vine weave. Vines hang from the roof and a moss arch rises between them.
     { id: 'vine-1', look: 'vine', x0: 5952, x1: 5964, y0: ROOF, y1: 195 },
     { id: 'arch', look: 'mound', x0: 6203, x1: 6789, y0: 270, y1: FLOOR, round: { tl: 70, tr: 70 } },
@@ -59,17 +57,21 @@ export const L11: LevelDef = {
   // Beat 02: the first moss mound. You can't avoid it; holding clears it.
   humps: [{ id: 'mound-1', cx: 1367, width: 1074, height: 99 }],
   briars: [],
-  // Beat 06: Mossback log, a preview of 1-2. Landing on the high end tips it and rolls the pebble away.
-  seesaws: [{ id: 'mossback', px: 5000, py: 320, half: 90, high: 'left' }],
+  // Beat 06: Mossback log, a preview of 1-2. A pebble rests in the knot on its low end, right on
+  // seed 2. Landing on the high end tips the log, the pebble rolls away, and the seed rises into reach.
+  seesaws: [{ id: 'mossback', px: 5000, py: 320, half: 90, high: 'left', cradle: true }],
   gates: [],
   curtains: [],
   wheels: [],
-  pebbles: [{ id: 'pebble', x: 5180, y: FLOOR - 18, r: 18 }],
+  pebbles: [{ id: 'pebble', x: 5063, y: 315, r: 14 }],
   seeds: [
     { id: 'high', x: 1851, y: 79 }, // beat 03: open sky, rewards holding longer
-    { id: 'low', x: 5180, y: 340 }, // beat 07: under the pebble until the log tips and knocks it away
+    // Beat 07: on the log's low end, under the pebble, until the log tips.
+    { id: 'low', x: 5063, y: 315, ride: { log: 'mossback', at: 0.7, lift: 19 } },
     { id: 'alcove', x: 7516, y: 337 }, // beat 09: under the overhang
   ],
   bubbles: [],
+  orbs: [],
+  crushers: [],
   blooms: [{ id: 'bloom-1', x: 4166 }], // beat 05
 };

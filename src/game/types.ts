@@ -39,7 +39,7 @@ export interface BriarDef {
   width?: number; // spike width, default 20
 }
 
-// Mossback log: a seesaw. Landing on its high end tips it.
+// Mossback log: a seesaw on a real hinge. Weight on its high end tips it.
 export interface SeesawDef {
   id: string;
   px: number; // pivot
@@ -52,13 +52,16 @@ export interface SeesawDef {
   mode?: 'free' | 'dud' | 'return' | 'beat';
   returnAfter?: number;
   beat?: number;
+  // A heavy old log: its hinge holds against anything lighter than a swollen Puff.
+  heavy?: boolean;
+  cradle?: boolean; // a knot on the low end that holds a pebble until the log tips
 }
 
-// Gate: a bar hanging from the roof. Closed, it reaches the floor.
+// Gate: a bar hanging from the roof. Closed, it reaches the floor; open, it creaks up into the roof.
 export interface GateDef {
   id: string;
   x: number;
-  openBottom: number; // bar's bottom edge when fully open
+  openBottom: number; // bar's bottom edge when fully open, tucked under the roof
   link: string; // seesaw that works it
   // latch: opens when its log tips and stays open.
   // timed: opens when its log tips, then drifts shut over closeTime once Puff comes within closeAhead.
@@ -94,6 +97,28 @@ export interface PebbleDef {
   x: number;
   y: number;
   r: number;
+  heavy?: boolean; // a boulder: only a swollen Puff can shove it
+}
+
+// Rootcrusher: a block hung from the roots that slams to the floor on a beat. Its root-toothed
+// underside is deadly; its top and sides are safe. Dust falls from it just before it drops.
+export interface CrusherDef {
+  id: string;
+  x: number; // centre
+  width: number;
+  height: number; // the block itself
+  rest: number; // y of its underside while raised
+  period: number; // s per slam, before the 1% ramp
+  offset?: number; // s, shifts this crusher's beat
+}
+
+// Swell and Shrink orbs. Touching one resizes every Puff touching it for a few seconds.
+export interface OrbDef {
+  id: string;
+  x: number;
+  y: number;
+  kind: 'swell' | 'shrink';
+  time?: number; // s the size lasts, default 6
 }
 
 export interface SeedDef {
@@ -101,6 +126,8 @@ export interface SeedDef {
   x: number;
   y: number;
   orbit?: { wheel: string; radius: number }; // rides a thornwheel's missing tooth
+  // Rides a log: `at` runs from -1 (left end) to 1 (right end), `lift` is pt above its middle.
+  ride?: { log: string; at: number; lift: number };
 }
 
 export interface BubbleDef {
@@ -140,11 +167,12 @@ export interface LevelDef {
   sky: [number, number][]; // gradient stops: [position 0-1, colour], top to bottom
   sunX: number;
   sunY: number;
-  deaths: 'none' | 'instant' | 'screen';
+  // instant: a lost run re-forms at the last bloom right away. screen: the A7 fail screen first.
+  deaths: 'instant' | 'screen';
   goalClones: number; // clones home for the badge; 1 when the level has no Split
   hint?: boolean; // 1-1's "Hold" ring
   perch?: boolean; // start resting on a dandelion head
-  lingerAtBloom?: boolean; // camera lingers 0.5s at the first bloom
+  lingerAtBloom?: boolean; // the scroll lingers 0.5s at the first bloom
   labels?: LabelDef[];
   roots?: RootDef[];
   rootTrail?: { x0: number; x1: number; y: number }; // root along the ceiling that points to a gate
@@ -159,4 +187,6 @@ export interface LevelDef {
   seeds: SeedDef[];
   bubbles: BubbleDef[];
   blooms: BloomDef[];
+  orbs: OrbDef[];
+  crushers: CrusherDef[];
 }

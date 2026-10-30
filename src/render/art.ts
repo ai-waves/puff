@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { BLUSH, BURROW_GLOW, CREAM, GLOW, INK, MID, MINT, PALE, SKY, SPROUT, STEM } from '../config/palette';
+import { BLUSH, BURROW_GLOW, CREAM, GLOW, ICE, INK, MID, MINT, PALE, PEACH, SKY, SPROUT, STEM } from '../config/palette';
 
 type G = Phaser.GameObjects.Graphics;
 
@@ -155,6 +155,44 @@ export function drawBubble(g: G, x: number, y: number, r = 20, a = 1): void {
   g.fillStyle(MINT, 0.3 * a).fillCircle(x, y, r);
   g.lineStyle(2.5, PALE, a).strokeCircle(x, y, r);
   g.fillStyle(CREAM, a).fillCircle(x - r * 0.3, y, r * 0.27).fillCircle(x + r * 0.3, y, r * 0.27);
+}
+
+// Swell and Shrink orbs, from the power-up board: a glowing ring around a big or a tiny Puff.
+export function drawOrb(g: G, x: number, y: number, kind: 'swell' | 'shrink', r = 20, a = 1): void {
+  const tint = kind === 'swell' ? PEACH : ICE;
+  glow(g, x, y, r, tint, a);
+  g.fillStyle(tint, 0.35 * a).fillCircle(x, y, r);
+  g.lineStyle(2.5, PALE, a).strokeCircle(x, y, r);
+  g.fillStyle(CREAM, a).fillCircle(x, y, r * (kind === 'swell' ? 0.46 : 0.18));
+}
+
+// Rootcrusher: a black block hung on roots, with a row of root teeth underneath. While it's about
+// to drop, dust trickles from its underside.
+export function drawCrusher(g: G, x: number, width: number, height: number, bottom: number, roof: number, warn: boolean, t: number): void {
+  const x0 = x - width / 2;
+  const top = bottom - height;
+  g.lineStyle(3, INK, 1);
+  for (const k of [0.2, 0.5, 0.8]) {
+    const rx = x0 + width * k;
+    g.lineBetween(rx, roof, rx + Math.sin(t * 2 + k * 9) * 1.5, top + 2);
+  }
+  g.fillStyle(INK, 1).fillRoundedRect(x0, top, width, height - 8, { tl: 4, tr: 4, bl: 0, br: 0 });
+  for (let tx = x0; tx < x0 + width - 0.5; tx += 10) {
+    const w = Math.min(10, x0 + width - tx);
+    g.fillTriangle(tx, bottom - 9, tx + w, bottom - 9, tx + w / 2, bottom);
+  }
+  if (warn) {
+    for (let k = 0; k < 7; k++) {
+      const dx = x0 + 8 + ((k * 37) % Math.max(1, width - 16));
+      const fall = ((t * 70 + k * 23) % 40) + 4;
+      g.fillStyle(INK, 1 - fall / 48).fillRect(dx, bottom + fall, 3, 5);
+    }
+  }
+}
+
+// A boulder: a black octagon.
+export function drawBoulder(g: G, pts: { x: number; y: number }[], dx: number): void {
+  g.fillStyle(INK, 1).fillPoints(pts.map((p) => new Phaser.Math.Vector2(p.x - dx, p.y)), true);
 }
 
 // Thornwheel: a black disc ringed with thorns. One may be missing, for a seed to ride in.

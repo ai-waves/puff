@@ -6,6 +6,7 @@ import '@fontsource/fredoka/700.css';
 import '@fontsource/jetbrains-mono/400.css';
 import '@fontsource/jetbrains-mono/500.css';
 import { SCREEN } from './config/constants';
+import { loadBox2D } from './game/physics';
 import { loadSave } from './platform/storage';
 import { ClearScene } from './scenes/ClearScene';
 import { MapScene } from './scenes/MapScene';
@@ -14,11 +15,11 @@ import { TitleScene } from './scenes/TitleScene';
 import { WorldScene } from './scenes/WorldScene';
 import { services } from './services';
 
-// Wait for the bundled fonts and saved progress, then start at the title.
+// Wait for the bundled fonts, saved progress and the Box2D physics engine, then start at the title.
 async function boot(): Promise<void> {
   const fonts = ['400', '500', '600', '700'].map((w) => document.fonts.load(`${w} 20px Fredoka`));
   fonts.push(document.fonts.load('400 12px "JetBrains Mono"'));
-  const [save] = await Promise.all([loadSave(), ...fonts]);
+  const [save] = await Promise.all([loadSave(), loadBox2D(), ...fonts]);
   services.save = save;
   services.applySettings();
   const game = new Phaser.Game({

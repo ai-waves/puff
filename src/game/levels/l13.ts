@@ -70,6 +70,8 @@ export const L13: LevelDef = {
     { id: 'pocket', x: 6800, y: 200 }, // beat 09: the one wide pocket in the slalom
   ],
   bubbles: [],
+  orbs: [],
+  crushers: [],
   blooms: [
     { id: 'bloom-1', x: 3075 }, // beat 04
     { id: 'bloom-2', x: 6201 }, // beat 08: right before the peak, so retries stay under 10s

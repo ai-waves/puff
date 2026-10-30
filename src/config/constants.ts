@@ -20,13 +20,34 @@ export const PHYSICS = {
   bounce: 0.35, // moss mounds are soft and bouncy
 } as const;
 
-export const BUMP_BACK = 24; // pt a bump pushes a Puff back
-export const RESPAWN_TIME = 0.4; // s, burst of fluff before Puff re-forms (1-3)
+// Puff drifts forward on its own, toward its spot on screen. Blocked, it falls behind the scroll;
+// once free it catches up. Its push is gentle, so props and walls can hold it back.
+export const DRIFT = {
+  pull: 4, // 1/s, how fast Puff matches its target speed
+  accel: 300, // pt/s^2, the most the drift can push or brake
+  ease: 200, // pt off its spot for the full catch-up or slow-down
+  catchUp: 0.6, // up to 1.6x the scroll speed when behind
+  slow: 0.5, // down to 0.5x when ahead
+} as const;
+
+// The screen scrolls on its own, like Badland. A Puff the left edge passes is lost; the front
+// Puff can never run off the right edge, the scroll speeds up first.
+export const EDGE_KILL = 0; // screen x a Puff's centre must stay right of
+export const CAM_LEAD = 560; // screen x the front Puff can reach before the scroll speeds up
+
+// Swell and Shrink (chapter 2).
+export const SIZE = {
+  swell: 1.8,
+  shrink: 0.5,
+  time: 6, // s, default
+  rate: 4, // size changes per second, so a resize takes a quarter second
+} as const;
+
+export const RESPAWN_TIME = 0.4; // s, burst of fluff before Puff re-forms at the last bloom
 export const WHEEL_FREEZE = 1; // s, thornwheels hold still after a respawn (1-5)
-export const STUCK_REWIND = 3; // s pressed against a closed gate before drifting back
-export const STALL_REWIND = 8; // s with no forward progress at all before drifting back (after the 4s hint)
 export const MAX_PUFFS = 6;
 export const CLONE_LAG = 0.08; // s (1-4 tuning: clone lag 80 ms)
 export const CLONE_SPREAD = 45; // pt (1-4 tuning: spread 45 pt)
-export const SIM_STEP = 1 / 120;
+export const SIM_STEP = 1 / 60; // Box2D's sweet spot, with 4 substeps
+export const SUBSTEPS = 4;
 export const HINT_RETURN = 4; // s without a hold before the hint returns

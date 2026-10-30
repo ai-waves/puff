@@ -74,8 +74,8 @@ export class ClearScene extends Phaser.Scene {
     const forward = finale
       ? button(this, 0, y, 'Chapter', { kind: 'primary', ink: INK, paper: CREAM, onTap: () => this.chapterCard() })
       : button(this, 0, y, next ? `Next · ${next.id}` : 'Map', { kind: 'primary', ink: INK, paper: CREAM, onTap: () => (next ? go(this, 'play', { levelId: next.id }) : go(this, 'map', { world: 1 })) });
-    forward.setX(SCREEN.width - 56 - forward.w / 2);
-    replay.setX(forward.x - forward.w / 2 - 12 - replay.w / 2);
+    forward.setX(SCREEN.width - 56 - forward.span / 2);
+    replay.setX(forward.x - forward.span / 2 - 12 - replay.span / 2);
   }
 
   // Last light: a chapter card reads "First Flight" with all 15 chapter seeds shown.

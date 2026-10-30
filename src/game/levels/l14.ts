@@ -51,7 +51,7 @@ export const L14: LevelDef = {
   ],
   // Beat 07: two bubbles and seed 2 sit behind a seesaw gate.
   seesaws: [{ id: 'gate-log', px: 5100, py: 300, half: 110, high: 'right' }],
-  gates: [{ id: 'gate', x: 5400, openBottom: 263, link: 'gate-log', mode: 'latch' }],
+  gates: [{ id: 'gate', x: 5400, openBottom: ROOF + 26, link: 'gate-log', mode: 'latch' }],
   curtains: [],
   wheels: [],
   pebbles: [],
@@ -66,6 +66,8 @@ export const L14: LevelDef = {
     { id: 'bubble-3', x: 6037, y: 138 }, // beat 07: behind the gate
     { id: 'bubble-4', x: 6298, y: 226 },
   ],
+  orbs: [],
+  crushers: [],
   blooms: [
     { id: 'bloom-1', x: 3090 }, // beat 04: saves the clone count
     { id: 'bloom-2', x: 6707 }, // beat 08: one quiet screen to count the flock
