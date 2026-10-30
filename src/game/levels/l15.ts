@@ -58,7 +58,7 @@ export const L15: LevelDef = {
     { id: 'orbit', x: 3294, y: 141, orbit: { wheel: 'orbit', radius: 46 } }, // beat 03: rides the missing tooth
     // Beat 08: the rhythm seed, low just past the log's end. Dive for it as the end swings down;
     // as it swings up, it knocks Puff away.
-    { id: 'up-beat', x: 8062, y: 336 },
+    { id: 'up-beat', x: 8062, y: 336, route: [[7650, 180], [7880, 230], [8062, 322], [8250, 250]] },
     { id: 'shadow', x: 9439, y: 93 }, // beat 09: in the centre wheel's shadow
   ],
   bubbles: [
@@ -73,4 +73,6 @@ export const L15: LevelDef = {
     { id: 'bloom-2', x: 6977 }, // beat 07
     { id: 'bloom-3', x: 8397 }, // beat 09: just before the glade
   ],
+  // The glade weave: under the first wheel, over the second, under the third.
+  route: [[8450, 205], [8928, 205], [9180, 175], [9439, 150], [9700, 180], [9951, 205], [10300, 205]],
 };

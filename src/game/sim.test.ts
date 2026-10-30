@@ -315,7 +315,7 @@ describe('hazards', () => {
 
   it('slams a rootcrusher on its beat, with dust first, and crushes a Puff under it', () => {
     // A wide crusher that slams 2s in, while Puff is right under it.
-    const crusher = { id: 'c', x: 600, width: 400, height: 60, rest: 200, period: 3, offset: 1 };
+    const crusher = { id: 'c', x: 600, width: 400, rest: 200, period: 3, offset: 1 };
     const sim = started(level({ crushers: [crusher] }));
     const events = run(sim, 2.5, hover(290));
     const order = types(events).filter((t) => t === 'dust' || t === 'slam' || t === 'lost');
@@ -325,7 +325,7 @@ describe('hazards', () => {
 
   it('is only deadly underneath: its sides just bump', () => {
     // It slams just ahead of Puff, which flies into its side, then under it once it rises.
-    const crusher = { id: 'c', x: 700, width: 120, height: 80, rest: 120, period: 100, offset: 99.7 };
+    const crusher = { id: 'c', x: 700, width: 120, rest: 120, period: 100, offset: 99.7 };
     const sim = started(level({ startX: 590, startY: 300, crushers: [crusher] }));
     expect(crusherBottom(sim, 0)).toBeCloseTo(120, 0);
     const events = run(sim, 0.6, hover(300));
@@ -364,6 +364,27 @@ describe('Swell and Shrink', () => {
     const events = run(small, 8, hover(180));
     expect(types(events)).not.toContain('lost');
     expect(lead(small).x).toBeGreaterThan(900);
+  });
+});
+
+describe('flocks and size', () => {
+  const bubbles = [{ id: 'b1', x: 340, y: 180 }, { id: 'b2', x: 900, y: 180 }];
+
+  it('resizes the whole flock when any Puff pops a Swell or Shrink orb', () => {
+    const sim = started(level({ bubbles, orbs: [{ id: 'o', x: 1500, y: 180, kind: 'shrink', time: 4 }] }));
+    run(sim, 12, hover(180));
+    expect(sim.s.puffs.length).toBeGreaterThanOrEqual(3);
+    for (const p of sim.s.puffs) expect(p.r).toBeCloseTo(p.base * SIZE.shrink, 1);
+  });
+
+  it('bunches a shrunk flock up, so it fits where its leader fits', () => {
+    const spread = (sim: Sim) => Math.max(...sim.s.puffs.map((p) => Math.abs(p.y - lead(sim).y)));
+    const sim = started(level({ bubbles, orbs: [{ id: 'o', x: 1500, y: 180, kind: 'shrink', time: 6 }] }));
+    run(sim, 8, hover(180));
+    const before = spread(sim);
+    run(sim, 4, hover(180));
+    expect(spread(sim)).toBeLessThan(before);
+    expect(spread(sim)).toBeLessThanOrEqual(CLONE_SPREAD / 4 + 4);
   });
 });
 

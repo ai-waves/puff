@@ -88,7 +88,7 @@ export interface SimState {
   pebbles: { x: number; y: number; angle: number; jammed: boolean; gone: boolean }[];
   crushers: { drop: number; warn: boolean }[];
   bubbles: { poppedAt: number | null; splitBy: number[] }[];
-  orbs: { poppedAt: number | null; by: number[] }[];
+  orbs: { poppedAt: number | null }[];
   seeds: boolean[];
   blooms: boolean[];
   checkpoint: { x: number; y: number; count: number } | null;
@@ -145,7 +145,7 @@ const GATE_WIDTH = 14;
 const BUBBLE_R = 20;
 const ORB_R = 20;
 const SEED_R = 7;
-const POP_WINDOW = 0.4; // s a popping bubble or orb still catches the Puffs behind the first
+const POP_WINDOW = 0.4; // s a popping bubble still catches the Puffs behind the first
 const WHEEL_CORE = 0.75;
 const WHEEL_TEETH = 16;
 const CLONE_DELAY_STEPS = Math.round(CLONE_LAG / SIM_STEP);
@@ -263,7 +263,8 @@ export function createSim(def: LevelDef): Sim {
     const body = createBody(id, 'kinematic', c.x, c.rest + st.drop * (FLOOR - c.rest));
     const x0 = c.x - c.width / 2;
     const x1 = c.x + c.width / 2;
-    tag(addBox(body, x0, c.rest - c.height, x1, c.rest - CRUSHER_TEETH, { cat: 'prop' }, o), solid);
+    // The column reaches past the roof even when slammed, so nothing gets above it.
+    tag(addBox(body, x0, c.rest - (FLOOR - ROOF) - 200, x1, c.rest - CRUSHER_TEETH, { cat: 'prop' }, o), solid);
     tag(addBox(body, x0 + 2, c.rest - CRUSHER_TEETH, x1 - 2, c.rest, { cat: 'hazard' }, o), { kind: 'hazard', cause: 'crusher' });
     sim.s.crushers[i] = st;
     world.crushers.push(body);
@@ -372,7 +373,7 @@ function initialState(def: LevelDef): SimState {
     pebbles: def.pebbles.map((p) => ({ x: p.x, y: p.y, angle: 0, jammed: false, gone: false })),
     crushers: def.crushers.map(() => ({ drop: 0, warn: false })),
     bubbles: def.bubbles.map(() => ({ poppedAt: null, splitBy: [] })),
-    orbs: def.orbs.map(() => ({ poppedAt: null, by: [] })),
+    orbs: def.orbs.map(() => ({ poppedAt: null })),
     seeds: def.seeds.map(() => false),
     blooms: def.blooms.map(() => false),
     checkpoint: null,
@@ -608,7 +609,7 @@ function respawn(sim: Sim, events: SimEvent[]): void {
     if (b.x > x) s.bubbles[i] = { poppedAt: null, splitBy: [] };
   });
   def.orbs.forEach((o, i) => {
-    if (o.x > x) s.orbs[i] = { poppedAt: null, by: [] };
+    if (o.x > x) s.orbs[i] = { poppedAt: null };
   });
   // The scroll waits for the next hold, so a retry never starts mid-fall.
   s.camX = x - PUFF_SCREEN_X;
@@ -674,11 +675,14 @@ function drivePuffs(sim: Sim): void {
       targetVx = sim.speed * (1 + clamp(off, -DRIFT.slow, DRIFT.catchUp));
     } else {
       held = s.history[Math.max(0, s.history.length - 1 - (CLONE_DELAY_STEPS + i - 1))] ?? false;
+      // The flock keeps its shape at the leader's size: a shrunk flock bunches up to slip through
+      // brambles together, a swollen one spreads a little.
+      const k = clamp(lead.r / lead.base, 0.5, 1.2);
       const slot = SLOTS[i] ?? SLOTS[SLOTS.length - 1]!;
-      targetVx = clamp(lead.vx + 4 * (lead.x + slot.dx - p.x), 0, sim.speed * 2);
-      ay -= 3 * (p.y - (lead.y + slot.dy)); // a gentle pull back to its place in the flock
+      targetVx = clamp(lead.vx + 4 * (lead.x + slot.dx * k - p.x), 0, sim.speed * 2);
+      ay -= 3 * (p.y - (lead.y + slot.dy * k)); // a gentle pull back to its place in the flock
       const apart = p.y - lead.y;
-      const over = Math.abs(apart) - CLONE_SPREAD / 2;
+      const over = Math.abs(apart) - (CLONE_SPREAD / 2) * k;
       // Clones drift, but never far past 1.5 Puff-widths from the leader.
       if (over > 0) ay += -Math.sign(apart) * 60 * over + 6 * (lead.vy - p.vy);
     }
@@ -984,18 +988,15 @@ function collectPickups(sim: Sim, events: SimEvent[]): void {
     if (made) events.push({ type: 'split', x: b.x, y: b.y, count: s.puffs.length });
   });
 
-  // Swell and Shrink: every Puff touching the orb as it pops changes size for a while.
+  // Swell and Shrink: the first Puff to touch an orb pops it, and the whole flock changes size
+  // together for a while, so a flock can still fit through what its leader fits through.
   def.orbs.forEach((o, i) => {
     const st = s.orbs[i]!;
-    if (st.poppedAt !== null && s.t - st.poppedAt > POP_WINDOW) return;
+    if (st.poppedAt !== null) return;
+    if (!s.puffs.some((p) => Math.hypot(p.x - o.x, p.y - o.y) < p.r + ORB_R + 4)) return;
+    st.poppedAt = s.t;
+    events.push({ type: 'resize', id: o.id, kind: o.kind });
     for (const puff of s.puffs) {
-      if (st.by.includes(puff.id)) continue;
-      if (Math.hypot(puff.x - o.x, puff.y - o.y) >= puff.r + ORB_R + 4) continue;
-      if (st.poppedAt === null) {
-        st.poppedAt = s.t;
-        events.push({ type: 'resize', id: o.id, kind: o.kind });
-      }
-      st.by.push(puff.id);
       puff.size = o.kind === 'swell' ? SIZE.swell : SIZE.shrink;
       puff.sizeUntil = s.t + (o.time ?? SIZE.time);
     }

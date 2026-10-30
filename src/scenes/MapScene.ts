@@ -105,7 +105,7 @@ export class MapScene extends Phaser.Scene {
     const items: Phaser.GameObjects.GameObject[] = [bg];
 
     let title = `1-${i + 1}`;
-    let body = 'Coming soon. Chapter 2, Undergrowth, is still being designed.';
+    let body = 'Coming soon.';
     let playable = false;
     if (level) {
       title = `${level.id} ${level.name}`;

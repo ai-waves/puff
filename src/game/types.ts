@@ -100,13 +100,13 @@ export interface PebbleDef {
   heavy?: boolean; // a boulder: only a swollen Puff can shove it
 }
 
-// Rootcrusher: a block hung from the roots that slams to the floor on a beat. Its root-toothed
-// underside is deadly; its top and sides are safe. Dust falls from it just before it drops.
+// Rootcrusher: a column of roots from the roof that slams to the floor on a beat. Its toothed
+// underside is deadly; its sides are safe. Dust falls from it just before it drops. Up, Puff flies
+// under it; down, it's a wall.
 export interface CrusherDef {
   id: string;
   x: number; // centre
   width: number;
-  height: number; // the block itself
   rest: number; // y of its underside while raised
   period: number; // s per slam, before the 1% ramp
   offset?: number; // s, shifts this crusher's beat
@@ -128,6 +128,7 @@ export interface SeedDef {
   orbit?: { wheel: string; radius: number }; // rides a thornwheel's missing tooth
   // Rides a log: `at` runs from -1 (left end) to 1 (right end), `lift` is pt above its middle.
   ride?: { log: string; at: number; lift: number };
+  route?: [number, number][]; // the designer's line to this seed, like LevelDef.route
 }
 
 export interface BubbleDef {
@@ -189,4 +190,8 @@ export interface LevelDef {
   blooms: BloomDef[];
   orbs: OrbDef[];
   crushers: CrusherDef[];
+  // The designer's line through a puzzle, as points the leader passes. Only the level tests use
+  // it: their solver searches near it, and a win still has to happen in the real simulation.
+  // Points more than 600pt apart leave the stretch between them free.
+  route?: [number, number][];
 }

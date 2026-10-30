@@ -72,4 +72,6 @@ export const L14: LevelDef = {
     { id: 'bloom-1', x: 3090 }, // beat 04: saves the clone count
     { id: 'bloom-2', x: 6707 }, // beat 08: one quiet screen to count the flock
   ],
+  // Drop onto the gate log's high end to open the gate; keep the flock centred in the bramble run.
+  route: [[4800, 200], [4950, 215], [5160, 258], [5300, 315], [5500, 300], [6950, 203], [7500, 203], [8000, 203], [8300, 203]],
 };

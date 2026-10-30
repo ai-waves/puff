@@ -318,7 +318,7 @@ export class PlayScene extends Phaser.Scene {
     if (cause === 'thornwheel') {
       drawWheel(g, 640, 170, 60, this.now);
     } else if (cause === 'crusher') {
-      drawCrusher(g, 650, 150, 90, SCREEN.height - 40, 0, false, this.now);
+      drawCrusher(g, 650, 150, SCREEN.height - 40, 0, false, this.now);
     } else if (cause === 'behind') {
       g.fillStyle(INK, 1).fillRect(SCREEN.width - 230, 0, 230, SCREEN.height);
     } else {
@@ -510,7 +510,7 @@ export class PlayScene extends Phaser.Scene {
       drawBoulder(g, pts, cam);
     });
     def.crushers.forEach((c, i) => {
-      if (on(c.x - c.width / 2, c.x + c.width / 2)) drawCrusher(g, c.x - cam, c.width, c.height, crusherBottom(this.sim, i), ROOF, s.crushers[i]!.warn, t);
+      if (on(c.x - c.width / 2, c.x + c.width / 2)) drawCrusher(g, c.x - cam, c.width, crusherBottom(this.sim, i), ROOF, s.crushers[i]!.warn, t);
     });
     def.orbs.forEach((o, i) => {
       if (s.orbs[i]!.poppedAt === null && on(o.x - 30, o.x + 30)) drawOrb(g, o.x - cam, o.y + Math.sin(t * 2 + i) * 3, o.kind);
@@ -587,7 +587,7 @@ export class PlayScene extends Phaser.Scene {
     if (def.gates.some((g, i) => x >= g.x && x <= g.x + 14 && y <= gateBottom(this.sim, i))) return true;
     if (def.curtains.some((c, i) => x >= c.x0 && x <= c.x1 && y <= curtainBottom(this.sim, i))) return true;
     if (def.wheels.some((w) => Math.hypot(x - w.cx, y - w.cy) < w.r)) return true;
-    if (def.crushers.some((c, i) => Math.abs(x - c.x) < c.width / 2 && y <= crusherBottom(this.sim, i) && y >= crusherBottom(this.sim, i) - c.height)) return true;
+    if (def.crushers.some((c, i) => Math.abs(x - c.x) < c.width / 2 && y <= crusherBottom(this.sim, i))) return true;
     return def.briars.some((b) => {
       if (b.side !== 'down' || x < b.x0 || x > b.x0 + (b.width ?? 20) * b.spikes.length) return false;
       return briarTriangles(b).some((t) => circleTriangle(x, y, 0.01, t.ax, t.ay, t.bx, t.by, t.qx, t.qy));

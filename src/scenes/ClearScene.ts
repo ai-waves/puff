@@ -9,9 +9,25 @@ import { button, go, label, seedDots } from '../render/ui';
 import { services } from '../services';
 import type { ClearData } from './PlayScene';
 
+// World 1's two chapters, each closed by a chapter card after its last level.
+interface Chapter {
+  n: number;
+  name: string;
+  from: number; // index of its first level
+  last: string;
+  sky: [number, number][];
+}
+
+const CHAPTERS: Chapter[] = [
+  { n: 1, name: 'First Flight', from: 0, last: '1-5', sky: [[0, 0xd4876c], [0.6, 0xb95f52], [1, 0x7c3a39]] },
+  { n: 2, name: 'Undergrowth', from: 5, last: '1-10', sky: [[0, 0x956060], [0.6, 0x7c3a39], [1, 0x3e1f20]] },
+];
+
 // A6 · Level clear. The level ends at a glowing burrow and the sky brightens. Clones saved is the
 // main result. Seeds fill in one at a time with a soft chime, and the next level is one tap away.
 export class ClearScene extends Phaser.Scene {
+  private chapter: Chapter | null = null;
+
   constructor() {
     super('clear');
   }
@@ -19,10 +35,12 @@ export class ClearScene extends Phaser.Scene {
   create(data: ClearData): void {
     this.cameras.main.fadeIn(260, 255, 243, 220);
     const def = levelById(data.levelId) ?? LEVELS[0]!;
-    const finale = def.id === '1-5';
+    const chapter = CHAPTERS.find((c) => c.last === def.id);
+    this.chapter = chapter ?? null;
     const g = this.add.graphics();
-    // 1-5's burrow opens onto dusk; the others onto bright golden light.
-    drawSky(g, finale ? [[0, 0xd4876c], [0.6, 0xb95f52], [1, 0x7c3a39]] : [[0, 0xf6d7a2], [0.6, 0xf2c386], [1, 0xeb9a6c]], SCREEN.width, SCREEN.height);
+    // A chapter's last burrow opens onto its own sky (dusk after 1-5, the last light after 1-10);
+    // the others onto bright golden light.
+    drawSky(g, chapter ? chapter.sky : [[0, 0xf6d7a2], [0.6, 0xf2c386], [1, 0xeb9a6c]], SCREEN.width, SCREEN.height);
     drawSun(g, 425, 135, 95);
     g.fillStyle(FAR, 1).fillCircle(150, 500, 230).fillCircle(710, 500, 230);
     g.fillStyle(INK, 1).fillRect(0, SCREEN.height - 54, SCREEN.width, 54);
@@ -71,25 +89,27 @@ export class ClearScene extends Phaser.Scene {
     const next = nextLevel(def.id);
     const y = SCREEN.height - 72 - 52;
     const replay = button(this, 0, y, 'Replay', { kind: 'secondary', ink: INK, outlineAlpha: 1, onTap: () => go(this, 'play', { levelId: def.id }) });
-    const forward = finale
+    const forward = chapter
       ? button(this, 0, y, 'Chapter', { kind: 'primary', ink: INK, paper: CREAM, onTap: () => this.chapterCard() })
       : button(this, 0, y, next ? `Next · ${next.id}` : 'Map', { kind: 'primary', ink: INK, paper: CREAM, onTap: () => (next ? go(this, 'play', { levelId: next.id }) : go(this, 'map', { world: 1 })) });
     forward.setX(SCREEN.width - 56 - forward.span / 2);
     replay.setX(forward.x - forward.span / 2 - 12 - replay.span / 2);
   }
 
-  // Last light: a chapter card reads "First Flight" with all 15 chapter seeds shown.
+  // A chapter card reads the chapter's name with all 15 of its seeds shown.
   private chapterCard(): void {
+    const chapter = this.chapter ?? CHAPTERS[0]!;
+    const levels = LEVELS.slice(chapter.from, chapter.from + 5);
     const dim = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, INK, 0.92).setOrigin(0).setInteractive();
     const items: Phaser.GameObjects.GameObject[] = [dim];
-    items.push(label(this, SCREEN.width / 2, 70, 'CHAPTER 1 · COMPLETE', { size: 12, mono: true, spacing: 0.2, color: MUTED }).setOrigin(0.5, 0));
-    items.push(label(this, SCREEN.width / 2, 92, 'First Flight', { size: 52, weight: 600 }).setOrigin(0.5, 0));
+    items.push(label(this, SCREEN.width / 2, 70, `CHAPTER ${chapter.n} · COMPLETE`, { size: 12, mono: true, spacing: 0.2, color: MUTED }).setOrigin(0.5, 0));
+    items.push(label(this, SCREEN.width / 2, 92, chapter.name, { size: 52, weight: 600 }).setOrigin(0.5, 0));
     const g = this.add.graphics();
     items.push(g);
     const groupW = 3 * 14 + 2 * 6;
     const gap = 36;
-    const left = SCREEN.width / 2 - (LEVELS.length * groupW + (LEVELS.length - 1) * gap) / 2;
-    LEVELS.forEach((l, i) => {
+    const left = SCREEN.width / 2 - (levels.length * groupW + (levels.length - 1) * gap) / 2;
+    levels.forEach((l, i) => {
       const x = left + i * (groupW + gap);
       seedDots(g, x, 196, record(services.save, l.id).seeds, { ink: CREAM, emptyAlpha: 0.6, ring: 2.5 });
       items.push(label(this, x + groupW / 2, 214, l.id, { size: 11, mono: true, spacing: 0.12, color: MUTED }).setOrigin(0.5, 0));

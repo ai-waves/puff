@@ -166,20 +166,20 @@ export function drawOrb(g: G, x: number, y: number, kind: 'swell' | 'shrink', r 
   g.fillStyle(CREAM, a).fillCircle(x, y, r * (kind === 'swell' ? 0.46 : 0.18));
 }
 
-// Rootcrusher: a black block hung on roots, with a row of root teeth underneath. While it's about
-// to drop, dust trickles from its underside.
-export function drawCrusher(g: G, x: number, width: number, height: number, bottom: number, roof: number, warn: boolean, t: number): void {
+// Rootcrusher: a column of knotted roots from the roof, with a row of root teeth underneath.
+// While it's about to drop, dust trickles from its underside.
+export function drawCrusher(g: G, x: number, width: number, bottom: number, roof: number, warn: boolean, t: number): void {
   const x0 = x - width / 2;
-  const top = bottom - height;
-  g.lineStyle(3, INK, 1);
-  for (const k of [0.2, 0.5, 0.8]) {
+  g.fillStyle(INK, 1).fillRect(x0, roof - 2, width, bottom - 8 - roof + 2);
+  // Root grain, a shade lighter, so the column reads as roots rather than a wall.
+  g.lineStyle(1.5, MID, 0.55);
+  for (const k of [0.22, 0.5, 0.78]) {
     const rx = x0 + width * k;
-    g.lineBetween(rx, roof, rx + Math.sin(t * 2 + k * 9) * 1.5, top + 2);
+    g.lineBetween(rx + Math.sin(k * 9) * 3, roof, rx - Math.sin(k * 7) * 3, bottom - 14);
   }
-  g.fillStyle(INK, 1).fillRoundedRect(x0, top, width, height - 8, { tl: 4, tr: 4, bl: 0, br: 0 });
   for (let tx = x0; tx < x0 + width - 0.5; tx += 10) {
     const w = Math.min(10, x0 + width - tx);
-    g.fillTriangle(tx, bottom - 9, tx + w, bottom - 9, tx + w / 2, bottom);
+    g.fillStyle(INK, 1).fillTriangle(tx, bottom - 9, tx + w, bottom - 9, tx + w / 2, bottom);
   }
   if (warn) {
     for (let k = 0; k < 7; k++) {
