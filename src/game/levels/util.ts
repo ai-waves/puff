@@ -1,13 +1,7 @@
-import { PLAYFIELD } from '../../config/constants';
 import { tuning } from '../../config/tuning';
 import type { BriarDef, CrusherDef } from '../types';
 
-export const { roofY: ROOF, floorY: FLOOR } = PLAYFIELD;
-
-// Repeat a height pattern across n spikes.
-export function heights(n: number, pattern: number[]): number[] {
-  return Array.from({ length: n }, (_, i) => pattern[i % pattern.length]!);
-}
+// Helpers for making level pieces whose numbers follow from a rule. The level editor uses them.
 
 // A rootcrusher whose beat meets a Puff flying at level n's scroll pace from startX: it arrives
 // `late` seconds after the crusher has finished lifting (slam, hold and rise take ~1.4s).

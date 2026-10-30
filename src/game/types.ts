@@ -3,6 +3,12 @@
 
 export type Look = 'block' | 'log' | 'shelf' | 'ledge' | 'vine' | 'lip' | 'mound';
 
+// Every object can carry a designer's note: what it's for in the level's beats. The level editor
+// shows and edits it; the game ignores it.
+export interface Noted {
+  note?: string;
+}
+
 export interface Corners {
   tl?: number;
   tr?: number;
@@ -11,7 +17,7 @@ export interface Corners {
 }
 
 // Static solid rectangle. Safe to touch: Puff bumps off it.
-export interface RectDef {
+export interface RectDef extends Noted {
   id: string;
   x0: number;
   x1: number;
@@ -22,7 +28,7 @@ export interface RectDef {
 }
 
 // Moss mound: a soft round hump rising from the floor. Bouncy, never deadly.
-export interface HumpDef {
+export interface HumpDef extends Noted {
   id: string;
   cx: number;
   width: number;
@@ -30,7 +36,7 @@ export interface HumpDef {
 }
 
 // Briar: a row of static spikes. 'up' spikes stand on base y, 'down' spikes hang from it.
-export interface BriarDef {
+export interface BriarDef extends Noted {
   id: string;
   x0: number;
   base: number;
@@ -40,7 +46,7 @@ export interface BriarDef {
 }
 
 // Mossback log: a seesaw on a real hinge. Weight on its high end tips it.
-export interface SeesawDef {
+export interface SeesawDef extends Noted {
   id: string;
   px: number; // pivot
   py: number;
@@ -58,7 +64,7 @@ export interface SeesawDef {
 }
 
 // Gate: a bar hanging from the roof. Closed, it reaches the floor; open, it creaks up into the roof.
-export interface GateDef {
+export interface GateDef extends Noted {
   id: string;
   x: number;
   openBottom: number; // bar's bottom edge when fully open, tucked under the roof
@@ -71,7 +77,7 @@ export interface GateDef {
 }
 
 // Thorn curtain: a hanging briar lifted by a seesaw. Deadly.
-export interface CurtainDef {
+export interface CurtainDef extends Noted {
   id: string;
   x0: number;
   x1: number;
@@ -80,7 +86,7 @@ export interface CurtainDef {
   link: string;
 }
 
-export interface WheelDef {
+export interface WheelDef extends Noted {
   id: string;
   cx: number;
   cy: number;
@@ -92,7 +98,7 @@ export interface WheelDef {
   hang?: number; // drawn hanging from this y
 }
 
-export interface PebbleDef {
+export interface PebbleDef extends Noted {
   id: string;
   x: number;
   y: number;
@@ -103,7 +109,7 @@ export interface PebbleDef {
 // Rootcrusher: a column of roots from the roof that slams to the floor on a beat. Its toothed
 // underside is deadly; its sides are safe. Dust falls from it just before it drops. Up, Puff flies
 // under it; down, it's a wall.
-export interface CrusherDef {
+export interface CrusherDef extends Noted {
   id: string;
   x: number; // centre
   width: number;
@@ -113,7 +119,7 @@ export interface CrusherDef {
 }
 
 // Swell and Shrink orbs. Touching one resizes every Puff touching it for a few seconds.
-export interface OrbDef {
+export interface OrbDef extends Noted {
   id: string;
   x: number;
   y: number;
@@ -121,7 +127,7 @@ export interface OrbDef {
   time?: number; // s the size lasts, default 6
 }
 
-export interface SeedDef {
+export interface SeedDef extends Noted {
   id: string;
   x: number;
   y: number;
@@ -131,24 +137,24 @@ export interface SeedDef {
   route?: [number, number][]; // the designer's line to this seed, like LevelDef.route
 }
 
-export interface BubbleDef {
+export interface BubbleDef extends Noted {
   id: string;
   x: number;
   y: number;
 }
 
-export interface BloomDef {
+export interface BloomDef extends Noted {
   id: string;
   x: number;
 }
 
-export interface LabelDef {
+export interface LabelDef extends Noted {
   text: string;
   x: number;
   y: number;
 }
 
-export interface RootDef {
+export interface RootDef extends Noted {
   x: number;
   y0: number;
   len: number;
@@ -156,6 +162,7 @@ export interface RootDef {
 
 export interface LevelDef {
   id: string; // '1-1'
+  notes?: string; // the level's design notes, from the board
   n: number; // global level number, 1-40
   world: number;
   name: string;
