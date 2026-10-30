@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!-- Landscape iPhone: fill the notch-safe area and never zoom or scroll. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Hollowdrift" />
+    <meta name="theme-color" content="#1b0f10" />
+    <title>Hollowdrift</title>
+    <link rel="icon" href="data:," />
+    <style>
+      html, body { margin: 0; height: 100%; background: #1b0f10; overflow: hidden; }
+      body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+      #game { position: fixed; inset: 0; }
+      #game canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
