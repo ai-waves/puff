@@ -1,14 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { PLAYFIELD, PUFF_RADIUS, PUFF_SCREEN_X, SCREEN, SIZE } from '../../config/constants';
+import { PLAYFIELD, PUFF_RADIUS, SCREEN, SIZE } from '../../config/constants';
 import { tuning } from '../../config/tuning';
-import { briarTriangles, humpCircle, seesawEnds } from '../sim';
+import { briarTriangles } from '../sim';
 import { LEVELS, levelById } from './index';
+import { lintLevel } from './lint';
 
 const get = (id: string) => levelById(id)!;
 const CHAPTER_1 = LEVELS.slice(0, 5);
 const CHAPTER_2 = LEVELS.slice(5, 10);
-const ROOF = PLAYFIELD.roofY;
 const FLOOR = PLAYFIELD.floorY;
+
+// Every level passes the level editor's design checks: Puff starts and re-forms in open air, gates
+// sit on the same screen as their logs and tuck into the roof, seeds aren't buried, heavy logs and
+// tight brambles have their orb first, and crushers have a clear drop.
+describe('design checks', () => {
+  it.each(LEVELS.map((l) => [l.id, l] as const))('%s passes them all', (_id, l) => {
+    expect(lintLevel(l)).toEqual([]);
+  });
+
+  it('catches a gate out of sight of its log, and a buried seed', () => {
+    const l = structuredClone(get('1-2'));
+    l.gates[0]!.x = 2600;
+    l.gates[0]!.openBottom = 216;
+    l.seeds[1]!.y = 260;
+    l.seeds[1]!.x = 3900;
+    const found = lintLevel(l).map((x) => x.message);
+    expect(found.some((m) => m.startsWith('Gate "gate-1" is') && m.includes('off-screen'))).toBe(true);
+    expect(found.some((m) => m.includes('still hangs down to y 216'))).toBe(true);
+    expect(found).toContain('Seed "behind-gate" is inside solid ground.');
+  });
+});
 
 // Content lists and tuning tables from the level board.
 describe('chapter 1 content', () => {
@@ -35,18 +56,6 @@ describe('chapter 1 content', () => {
     }
     expect(get('1-3').deaths).toBe('instant');
     expect(get('1-3').briars.length).toBeGreaterThan(0);
-  });
-
-  it('keeps every gate on the same screen as the log that works it, and tucks it into the roof when open', () => {
-    for (const l of LEVELS) {
-      for (const g of l.gates) {
-        const sw = l.seesaws.find((s) => s.id === g.link)!;
-        const e = seesawEnds(sw, 0);
-        // Puff sits 280pt in from the left, so the rest of the screen is ahead of it.
-        expect(g.x - Math.max(e.ax, e.bx), `${l.id} ${g.id}`).toBeLessThanOrEqual(SCREEN.width - PUFF_SCREEN_X - 40);
-        expect(g.openBottom, `${l.id} ${g.id}`).toBeLessThanOrEqual(ROOF + 30);
-      }
-    }
   });
 
   it('matches the props each level lists', () => {
@@ -180,35 +189,5 @@ describe('narrowest gaps', () => {
     expect(new Set(spins)).toEqual(new Set([tuning(5).spin]));
     const glade = l.wheels.filter((w) => w.id.startsWith('glade')).map((w) => Math.sign(w.spin));
     expect(glade).toEqual([1, -1, 1]); // counter-rotating
-  });
-
-  it('re-forms Puff in open air: the start and every bloom are clear of ground', () => {
-    for (const l of LEVELS) {
-      const spots = [{ x: l.startX, y: l.startY }, ...l.blooms.map((b) => ({ x: b.x, y: 190 }))];
-      for (const p of spots) {
-        for (const r of l.rects) {
-          const near = p.x + 15 > r.x0 && p.x - 15 < r.x1 && p.y + 15 > r.y0 && p.y - 15 < r.y1;
-          expect(near, `${l.id} spawn at ${p.x} inside ${r.id}`).toBe(false);
-        }
-      }
-    }
-  });
-
-  it('never puts a seed inside solid ground', () => {
-    for (const l of LEVELS) {
-      for (const seed of l.seeds) {
-        if (seed.orbit || seed.ride) continue;
-        expect(seed.y).toBeGreaterThan(ROOF);
-        expect(seed.y).toBeLessThan(FLOOR);
-        for (const r of l.rects) {
-          const inside = seed.x > r.x0 && seed.x < r.x1 && seed.y > r.y0 && seed.y < r.y1;
-          expect(inside, `${l.id} ${seed.id} inside ${r.id}`).toBe(false);
-        }
-        for (const h of l.humps) {
-          const c = humpCircle(h.width, h.height);
-          expect(Math.hypot(seed.x - h.cx, seed.y - c.cy), `${l.id} ${seed.id} inside ${h.id}`).toBeGreaterThan(c.r);
-        }
-      }
-    }
   });
 });

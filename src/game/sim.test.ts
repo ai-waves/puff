@@ -2,10 +2,15 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { CLONE_RADIUS, CLONE_SPREAD, PHYSICS, PLAYFIELD, PUFF_RADIUS, PUFF_SCREEN_X, SIM_STEP, SIZE } from '../config/constants';
 import { b2 } from './physics';
 import {
+  arrivalTime,
+  camAtTime,
   createSim,
   crusherBottom,
+  crusherState,
   destroySim,
   gateBottom,
+  placeAtTime,
+  poseSim,
   restore,
   retryFromCheckpoint,
   seedPosition,
@@ -480,5 +485,48 @@ describe('determinism', () => {
     const b = types(run(sim, 6, pattern)).join();
     expect(b).toBe(a);
     expect(JSON.stringify(sim.s)).toBe(end);
+  });
+});
+
+describe("a run's clock", () => {
+  const def = level({
+    crushers: [{ id: 'c', x: 2000, width: 80, rest: 180, period: 3.2, offset: -1 }],
+    wheels: [{ id: 'w', cx: 1500, cy: 200, r: 40, spin: 90 }],
+    seesaws: [{ id: 'log', px: 1200, py: 300, half: 90, high: 'right', mode: 'beat', beat: 1.5 }],
+  });
+
+  it('scrolls at the level pace, so a Puff keeping its place reaches x on time', () => {
+    for (const t of [0, 3.3, 12]) {
+      expect(placeAtTime(def, t)).toBeCloseTo(camAtTime(def, t) + PUFF_SCREEN_X, 6);
+      expect(arrivalTime(def, placeAtTime(def, t))).toBeCloseTo(t, 6);
+    }
+  });
+
+  it('counts the linger at the first bloom', () => {
+    const linger = level({ lingerAtBloom: true, blooms: [{ id: 'b', x: 900 }] });
+    const at = arrivalTime(linger, 900);
+    expect(placeAtTime(linger, at + 0.3)).toBeCloseTo(900, 6);
+    expect(arrivalTime(linger, 1200) - arrivalTime(def, 1200)).toBeCloseTo(0.5, 6);
+  });
+
+  it('poses clocked things without running physics', () => {
+    const pose = poseSim(def, 7.25);
+    expect(pose.s.crushers[0]).toEqual(crusherState(def, def.crushers[0]!, 7.25));
+    expect(Math.cos(pose.s.wheels[0]!.angle)).toBeCloseTo(Math.cos((90 * Math.PI) / 180 * 7.25), 6);
+    expect(pose.s.camX).toBeCloseTo(camAtTime(def, 7.25), 6);
+    // A beat log swings over on odd beats.
+    expect(poseSim(def, 1).s.seesaws[0]!.angle).toBeGreaterThan(0);
+    expect(poseSim(def, 2).s.seesaws[0]!.angle).toBeLessThan(0);
+  });
+
+  it('starts a sim partway through a run with its clocks where a run would find them', () => {
+    const sim = make(def);
+    run(sim, SIM_STEP, true);
+    run(sim, 7.25 - SIM_STEP, false);
+    const t0 = createSim(def, 7.25);
+    sims.push(t0);
+    expect(t0.s.t).toBe(7.25);
+    expect(crusherBottom(t0, 0)).toBeCloseTo(crusherBottom(sim, 0), 3);
+    expect(Math.cos(t0.s.wheels[0]!.angle)).toBeCloseTo(Math.cos(sim.s.wheels[0]!.angle), 2);
   });
 });

@@ -78,6 +78,45 @@ npm run test:levels  # slow (several minutes): a beam-search player proves every
 npm run build        # typecheck + production bundle in dist/
 ```
 
+## Level editor
+
+Run `npm run dev` and open `http://localhost:5173/?edit=1-2`. You can also press **Edit 1-2** on the level
+map, or press **E** while playing to edit the level from where you are. The editor is in dev builds
+only: `npm run build` leaves it out.
+
+The editor draws the level exactly as the game does, one screen at a time, with a form for the
+selected object beside it.
+
+- **The clock.** The editor always shows one moment of a run. The slider, the mouse wheel and dragging
+  empty space all move through the level the way the scroll does. Rootcrushers, thornwheels and beat
+  logs move with the clock, and ▶ (Space) plays it. The ghost Puff is a Puff keeping its place on
+  screen at that moment.
+- **Select and drag** anything. Handles resize blocks, mounds, crushers, wheels and pebbles. They also
+  set each briar spike's height and the number of spikes, lengthen logs, and place where gates and
+  curtains go when open; those other states show as outlines. Drag the start Puff, the burrow and the
+  END line too. Positions snap to 5pt: Alt drags freely, Shift keeps to one axis, and the arrow keys
+  nudge.
+- **The panel** lists every field of the selected object, including its design note. The forms come
+  from the same schema the loader validates against. With nothing selected, it shows the level's own
+  fields: name, length, sky colours, what losing every Puff does, and so on. Renaming an ID also renames
+  everything that points at it.
+- **Timing.** A selected rootcrusher shows its beat against the moment a Puff keeping its place is
+  under it, with the room left and a button that times it for you. A beat log shows which end is up
+  when Puff arrives.
+- **Problems** lists the design checks the level tests run, such as a gate out of sight, a buried seed,
+  a heavy log with no Swell before it, or a bramble too tight to pass. It also lists anything that would
+  stop the level loading. Click a problem to go to it.
+- **Test flight (P)** flies from the ghost Puff with the clock where it is. Esc comes back to the
+  editor with nothing lost.
+- **Save (Ctrl+S)** writes `src/game/levels/data/<id>.json` in canonical form, so the diff shows only
+  what changed. A level with problems still saves; one the game couldn't load doesn't. Unsaved changes
+  survive a reload.
+- **Keys.** Ctrl+Z and Ctrl+Shift+Z undo and redo, Ctrl+D duplicates, and Delete deletes. On a Mac, use Cmd
+  instead of Ctrl.
+
+After big changes, run `npm run test:levels` to prove the level can still be finished and every seed
+reached.
+
 ## iOS
 
 Building for iOS needs macOS and Xcode:
@@ -98,9 +137,12 @@ iOS version Capacitor supports.
 src/config/      palette, constants (physics, screen, safe area), tuning (the 1% ramp)
 src/game/        physics.ts (Box2D loading, units, shape builders), sim.ts (the Box2D level simulation),
                  geometry, types, progress, solver (tests only: beam search over Box2D snapshots)
-src/game/levels/ l11.ts ... l110.ts, one file per level, with board positions noted beat by beat;
-                 solvable/ holds the slow solver checks, one file per level
-src/render/      art.ts (Puff and world objects), ui.ts (UI kit), panels.ts (settings, toasts)
+src/game/levels/ data/*.json, one file per level with design notes beat by beat; schema (fields and
+                 validation), format (the file form), lint (design checks); solvable/ holds the slow
+                 solver checks, one file per level
+src/editor/      the level editor (dev builds only): scene, model (undo), shapes (handles), panel (forms)
+src/render/      art.ts (Puff and world objects), levelView.ts (draws a level; play and the editor share
+                 it), ui.ts (UI kit), panels.ts (settings, toasts)
 src/scenes/      Title, World, Map, Play (HUD, pause, fail), Clear (and the chapter card)
 src/audio/       synthesized ambience, music box and effects
 src/platform/    Capacitor storage and haptics

@@ -123,6 +123,12 @@ export class MapScene extends Phaser.Scene {
       play.setX(x + w - 10 - play.span / 2);
       items.push(play);
     }
+    // Dev builds: open any level, locked or not, in the level editor.
+    if (import.meta.env.DEV && level) {
+      const edit = button(this, 0, 26, `Edit ${level.id}`, { kind: 'secondary', h: 36, size: 14, onTap: () => go(this, 'editor', { levelId: level.id }) });
+      edit.setX(SCREEN.width - 56 - edit.span / 2);
+      items.push(edit);
+    }
     this.card = this.add.container(0, 0, items);
   }
 

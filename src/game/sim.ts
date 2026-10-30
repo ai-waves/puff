@@ -133,13 +133,17 @@ export interface Sim {
   s: SimState;
 }
 
+// What drawing a level needs from a sim: the level and where everything is, no physics.
+export type SimView = Pick<Sim, 'def' | 's'>;
+
 export interface Snapshot {
   s: SimState;
   world: Uint8Array;
 }
 
 const { roofY: ROOF, floorY: FLOOR } = PLAYFIELD;
-const TILT = (12 * Math.PI) / 180;
+export const TILT = (12 * Math.PI) / 180;
+const LINGER = 0.5; // s the scroll lingers at the first bloom, where a level asks for it
 const PLANK_HALF_THICK = 5;
 const GATE_WIDTH = 14;
 const BUBBLE_R = 20;
@@ -176,7 +180,9 @@ export const SLOTS = [
 
 let live = 0;
 
-export function createSim(def: LevelDef): Sim {
+// t0 starts the level's clocks partway through a run: the level editor's test flights start
+// wherever you are, with the crushers and thornwheels where a run from the start would find them.
+export function createSim(def: LevelDef, t0 = 0): Sim {
   const B = b2();
   if (live >= 100) throw new Error('Too many sims alive: destroySim() the ones you are done with.');
   const wd = B.b2DefaultWorldDef();
@@ -202,6 +208,7 @@ export function createSim(def: LevelDef): Sim {
     vec: new B.b2Vec2(0, 0),
   };
   const sim: Sim = { def, speed: tuning(def.n).speed, world, s: initialState(def) };
+  sim.s.t = t0;
   const tag = (ids: b2ShapeId | b2ShapeId[], t: Tag) => {
     for (const s of Array.isArray(ids) ? ids : [ids]) world.tags.set(s.index1, t);
   };
@@ -212,13 +219,19 @@ export function createSim(def: LevelDef): Sim {
   tag(addBox(ground, -FAR, ROOF - 400, def.length + FAR, ROOF, { cat: 'terrain' }), solid);
   tag(addBox(ground, -FAR, FLOOR, def.length + FAR, FLOOR + 400, { cat: 'terrain' }), solid);
 
-  for (const r of def.rects) tag(addRect(ground, r), solid);
+  // Shapes too thin to have an inside are skipped: a level being edited passes through them, and
+  // Box2D can't build a polygon or circle from nothing.
+  for (const r of def.rects) if (r.x1 - r.x0 >= 1 && r.y1 - r.y0 >= 1) tag(addRect(ground, r), solid);
   for (const h of def.humps) {
+    if (h.width < 2 || h.height < 1) continue;
     const c = humpCircle(h.width, h.height);
     tag(addCircle(ground, h.cx, c.cy, c.r, { cat: 'terrain', restitution: PHYSICS.bounce }), solid);
   }
   for (const b of def.briars) {
-    for (const t of briarTriangles(b)) tag(addPolygon(ground, [{ x: t.ax, y: t.ay }, { x: t.bx, y: t.by }, { x: t.qx, y: t.qy }], { cat: 'hazard' }), briar);
+    for (const t of briarTriangles(b)) {
+      if (Math.abs(t.qy - t.ay) < 1 || t.bx - t.ax < 1) continue;
+      tag(addPolygon(ground, [{ x: t.ax, y: t.ay }, { x: t.bx, y: t.by }, { x: t.qx, y: t.qy }], { cat: 'hazard' }), briar);
+    }
   }
 
   for (const sw of def.seesaws) world.joints.push(buildSeesaw(sim, sw, (ids) => tag(ids, solid)));
@@ -239,7 +252,9 @@ export function createSim(def: LevelDef): Sim {
   }
   def.wheels.forEach((w, i) => {
     const o = { x: w.cx, y: w.cy };
-    const body = createBody(id, 'kinematic', o.x, o.y);
+    const angle = wheelAngle(w, t0);
+    const body = createBody(id, 'kinematic', o.x, o.y, angle);
+    sim.s.wheels[i]!.angle = angle;
     const hz: Tag = { kind: 'hazard', cause: 'thornwheel', wheel: i };
     tag(addCircle(body, w.cx, w.cy, wheelCore(w), { cat: 'hazard' }, o), hz);
     const tooth = w.r * 0.11;
@@ -258,7 +273,7 @@ export function createSim(def: LevelDef): Sim {
     world.pebbles.push(body);
   });
   def.crushers.forEach((c, i) => {
-    const st = crusherState(def, c, 0);
+    const st = crusherState(def, c, t0);
     const o = { x: c.x, y: c.rest };
     const body = createBody(id, 'kinematic', c.x, c.rest + st.drop * (FLOOR - c.rest));
     const x0 = c.x - c.width / 2;
@@ -426,16 +441,16 @@ export function seesawEnds(def: SeesawDef, angle: number) {
   return { ax: def.px - cx, ay: def.py + sy, bx: def.px + cx, by: def.py - sy };
 }
 
-export function gateBottom(sim: Sim, i: number): number {
+export function gateBottom(sim: SimView, i: number): number {
   return FLOOR - sim.s.gates[i]!.lift;
 }
 
-export function curtainBottom(sim: Sim, i: number): number {
+export function curtainBottom(sim: SimView, i: number): number {
   return sim.def.curtains[i]!.closedBottom - sim.s.curtains[i]!.lift;
 }
 
 // The crusher block's underside right now.
-export function crusherBottom(sim: Sim, i: number): number {
+export function crusherBottom(sim: SimView, i: number): number {
   const c = sim.def.crushers[i]!;
   return c.rest + sim.s.crushers[i]!.drop * (FLOOR - c.rest);
 }
@@ -457,10 +472,12 @@ export function wheelCore(w: WheelDef): number {
   return w.r * WHEEL_CORE;
 }
 
-export function seedPosition(sim: Sim, i: number): { x: number; y: number } {
+export function seedPosition(sim: SimView, i: number): { x: number; y: number } {
   const seed = sim.def.seeds[i]!;
+  // A seed riding something that isn't there (mid-edit) just sits at its own point.
   if (seed.ride) {
     const si = sim.def.seesaws.findIndex((sw) => sw.id === seed.ride!.log);
+    if (si < 0) return seed;
     const sw = sim.def.seesaws[si]!;
     const a = sim.s.seesaws[si]!.angle;
     const along = seed.ride.at * sw.half;
@@ -468,6 +485,7 @@ export function seedPosition(sim: Sim, i: number): { x: number; y: number } {
   }
   if (!seed.orbit) return seed;
   const wi = sim.def.wheels.findIndex((w) => w.id === seed.orbit!.wheel);
+  if (wi < 0) return seed;
   const w = sim.def.wheels[wi]!;
   const a = sim.s.wheels[wi]!.angle;
   return { x: w.cx + Math.cos(a) * seed.orbit.radius, y: w.cy + Math.sin(a) * seed.orbit.radius };
@@ -498,6 +516,55 @@ export function crusherState(def: LevelDef, c: CrusherDef, t: number): { drop: n
     return { drop: 1 - k * k * (3 - 2 * k), warn: false };
   }
   return { drop: 0, warn: u >= period - CRUSH.warn / d };
+}
+
+// ---------- A run's clock ----------
+// The clock starts at the first hold, and the scroll moves at the level's pace from then on. The
+// level editor shows a level at a moment of a run: the scroll where it would be, a Puff keeping
+// its place on screen, and every clocked thing where its clock puts it.
+
+function wheelAngle(w: WheelDef, t: number): number {
+  const a = ((w.spin * Math.PI) / 180) * t;
+  return Math.atan2(Math.sin(a), Math.cos(a));
+}
+
+// Seconds into a run when a Puff keeping its place on screen reaches x.
+export function arrivalTime(def: LevelDef, x: number): number {
+  const t = (x - def.startX) / tuning(def.n).speed;
+  const bloom = def.lingerAtBloom ? def.blooms[0] : undefined;
+  return bloom && x > bloom.x ? t + LINGER : t;
+}
+
+// Where that Puff is t seconds into a run.
+export function placeAtTime(def: LevelDef, t: number): number {
+  const speed = tuning(def.n).speed;
+  const bloom = def.lingerAtBloom ? def.blooms[0] : undefined;
+  if (bloom) {
+    const at = (bloom.x - def.startX) / speed;
+    if (t > at) t = Math.max(at, t - LINGER);
+  }
+  return def.startX + speed * t;
+}
+
+// The scroll t seconds into a run. It stops at the end of the level; Puff flies on to the burrow.
+export function camAtTime(def: LevelDef, t: number): number {
+  return Math.min(placeAtTime(def, t) - PUFF_SCREEN_X, def.length - SCREEN.width);
+}
+
+// The level t seconds into a run, with nobody in it and no physics: what the level editor draws.
+export function poseSim(def: LevelDef, t: number): SimView {
+  const s = initialState(def);
+  s.t = t;
+  s.camX = camAtTime(def, t);
+  def.wheels.forEach((w, i) => (s.wheels[i]!.angle = wheelAngle(w, t)));
+  def.crushers.forEach((c, i) => (s.crushers[i] = crusherState(def, c, t)));
+  def.seesaws.forEach((sw, i) => {
+    if (sw.mode !== 'beat' || Math.floor(t / (sw.beat ?? 1.5)) % 2 === 0) return;
+    const st = s.seesaws[i]!;
+    st.side = st.side === 1 ? -1 : 1;
+    st.angle = -st.angle;
+  });
+  return { def, s };
 }
 
 // ---------- Stepping ----------
@@ -1015,7 +1082,7 @@ function checkBlooms(sim: Sim, events: SimEvent[]): void {
     // 1-1: the scroll lingers 0.5s on the first bloom so the player notices it.
     if (def.lingerAtBloom && !s.lingered) {
       s.lingered = true;
-      s.lingerUntil = s.t + 0.5;
+      s.lingerUntil = s.t + LINGER;
     }
   });
 }
