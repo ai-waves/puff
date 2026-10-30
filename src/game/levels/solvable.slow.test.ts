@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { solve } from '../solver';
 import { LEVELS } from './index';
 
-// Slow checks (a few minutes): a beam-search player proves each level can be finished,
+// Slow checks (several minutes): a beam-search player proves each level can be finished,
 // each seed can be collected, and the clone badges can be earned. Run with `npm run test:levels`.
 describe.each(LEVELS)('$id $name', (level) => {
   it('can be finished', () => {
@@ -11,7 +11,8 @@ describe.each(LEVELS)('$id $name', (level) => {
   }, 120_000);
 
   it.each(level.seeds.map((s, i) => [s.id, i] as const))('seed %s can be collected', (_id, i) => {
-    const r = solve(level, { beam: 64, seedWeights: level.seeds.map((_, j) => (j === i ? 5000 : 0)) });
+    // A wide beam, so seeds that need waiting for a beat (1-5's rhythm seed) aren't pruned away.
+    const r = solve(level, { beam: 128, seedWeights: level.seeds.map((_, j) => (j === i ? 5000 : 0)) });
     expect(r.won && r.got[i]).toBe(true);
   }, 120_000);
 

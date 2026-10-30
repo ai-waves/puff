@@ -24,6 +24,7 @@ export const BUMP_BACK = 24; // pt a bump pushes a Puff back
 export const RESPAWN_TIME = 0.4; // s, burst of fluff before Puff re-forms (1-3)
 export const WHEEL_FREEZE = 1; // s, thornwheels hold still after a respawn (1-5)
 export const STUCK_REWIND = 3; // s pressed against a closed gate before drifting back
+export const STALL_REWIND = 8; // s with no forward progress at all before drifting back (after the 4s hint)
 export const MAX_PUFFS = 6;
 export const CLONE_LAG = 0.08; // s (1-4 tuning: clone lag 80 ms)
 export const CLONE_SPREAD = 45; // pt (1-4 tuning: spread 45 pt)

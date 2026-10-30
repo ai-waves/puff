@@ -56,7 +56,9 @@ export const L15: LevelDef = {
   pebbles: [{ id: 'pebble', x: 4822, y: 257 - 14, r: 14 }], // beat 05: push it into the wheel's axle
   seeds: [
     { id: 'orbit', x: 3294, y: 141, orbit: { wheel: 'orbit', radius: 46 } }, // beat 03: rides the missing tooth
-    { id: 'up-beat', x: 8046, y: 338 }, // beat 08: under the log, reachable only on the up-beat
+    // Beat 08: the rhythm seed, low just past the log's end. Dive for it as the end swings down;
+    // as it swings up, it knocks Puff away.
+    { id: 'up-beat', x: 8062, y: 336 },
     { id: 'shadow', x: 9439, y: 93 }, // beat 09: in the centre wheel's shadow
   ],
   bubbles: [
