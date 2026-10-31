@@ -8,6 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "test": "vitest run",
     "test:levels": "LEVELS=1 vitest run",
+    "levels:format": "node scripts/levels.mjs",
     "typecheck": "tsc --noEmit",
     "ios:sync": "npm run build && cap sync ios"
   },

@@ -9,6 +9,10 @@ Built with **Phaser 4 + TypeScript**, physics by **Box2D v3** (compiled to WebAs
 logic is a deterministic fixed-step simulation that runs headless in tests, and the renderer draws
 everything from the boards' shapes and palette. There are no image or audio files.
 
+**Working on the code?** Coding agents start at [AGENTS.md](AGENTS.md); everyone else at
+[docs/](docs/README.md). Where the project stands is in [docs/STATUS.md](docs/STATUS.md), what comes next in
+[docs/ROADMAP.md](docs/ROADMAP.md), and the original design boards are in [design/](design/README.md).
+
 **Badland rules.** The screen scrolls on its own. Puff drifts forward toward its spot on screen and the
 player only controls its height. Anything that blocks Puff makes it fall behind. A Puff that touches
 something deadly (briar, a thornwheel, a rootcrusher's underside), or that the left edge of the screen
@@ -75,6 +79,7 @@ npm run dev          # play in a browser at the printed URL
 npm test             # unit tests: tuning, geometry, every mechanic, level data vs the board, progress
 npm run test:levels  # slow (several minutes): a beam-search player proves every level is finishable,
                      # every one of the 30 seeds is collectable, and the three clone badges are earnable
+npm run levels:format  # after editing a level's JSON by hand: canonical form, plus its design problems
 npm run build        # typecheck + production bundle in dist/
 ```
 
@@ -146,6 +151,12 @@ src/render/      art.ts (Puff and world objects), levelView.ts (draws a level; p
 src/scenes/      Title, World, Map, Play (HUD, pause, fail), Clear (and the chapter card)
 src/audio/       synthesized ambience, music box and effects
 src/platform/    Capacitor storage and haptics
+scripts/         levels.mjs (npm run levels:format)
+docs/            architecture, game design, levels, testing, workflow, style, decisions, status,
+                 roadmap, and step-by-step playbooks
+design/          the original Claude Design boards and design chats
+AGENTS.md        instructions for coding agents (CLAUDE.md imports it; .claude/ and .agents/ hold
+                 the Claude Code and Antigravity adapters)
 ```
 
 ## Where the boards disagreed or couldn't be taken literally

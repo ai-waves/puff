@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#ECE7DF;color:#1E1A16;font-family:'Fredoka',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#1E1A16;text-decoration:underline}a:hover{color:#B5513D}
+</style>
+</helmet>
+
+<div style="width:1880px;padding:80px;display:flex;flex-direction:column;gap:96px;box-sizing:content-box">
+
+<header style="display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:64px;align-items:end">
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#6B635A">Game design artifacts · v1 · Oct 2026</span>
+    <h1 style="margin:0;font-size:96px;font-weight:700;letter-spacing:.02em;line-height:.95">Hollowdrift</h1>
+    <p style="margin:0;font-size:24px;line-height:1.4;max-width:760px;text-wrap:pretty">A side-scrolling physics flyer for phones. You guide Puff, a seed with a sprout on its head, through dark overgrown worlds. Hold to puff upward, collect seeds, and get as many clones home as you can.</p>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px 32px;font-size:16px;line-height:1.45">
+    <div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Format</span><span>Landscape iPhone, 844 × 390 pt</span></div>
+    <div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Input</span><span>Hold anywhere to puff. Release to drift.</span></div>
+    <div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Art direction</span><span>Black foreground silhouettes on lit skies. Puff is the only lit object.</span></div>
+    <div style="display:flex;flex-direction:column;gap:4px"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Worlds</span><span>Mossdeep · Rustwell · Brinefall · Stillsky</span></div>
+  </div>
+</header>
+
+<section id="screens" style="display:flex;flex-direction:column;gap:40px">
+  <div style="display:flex;align-items:baseline;gap:20px;border-bottom:2px solid #1E1A16;padding-bottom:16px">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#6B635A">A</span>
+    <h2 style="margin:0;font-size:40px;font-weight:600">Screen flow</h2>
+    <span style="font-size:18px;color:#6B635A">Title → World → Level → Play → Pause / Clear / Fail</span>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:72px 64px">
+
+    <!-- 01 TITLE -->
+    <div id="a1" style="display:flex;flex-direction:column;gap:16px;width:872px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#1E1A16;color:#ECE7DF;padding:4px 9px;border-radius:6px">A1</span><span style="font-size:22px;font-weight:600">Title</span></div>
+      <div style="width:872px;height:418px;padding:14px;box-sizing:border-box;background:#0B0A09;border-radius:60px;box-shadow:0 30px 60px -24px rgba(40,25,10,.45),inset 0 0 0 2px #2C2925">
+        <div style="position:relative;width:844px;height:390px;border-radius:46px;overflow:hidden;background:linear-gradient(180deg,#F2C386 0%,#EB9A6C 68%,#DC7A5E 100%)">
+          <div style="position:absolute;left:520px;top:46px;width:170px;height:170px;border-radius:50%;background:#FBE3B4;box-shadow:0 0 90px 40px rgba(251,227,180,.55)"></div>
+          <div style="position:absolute;left:-80px;top:250px;width:440px;height:440px;border-radius:50%;background:#C8705A"></div>
+          <div style="position:absolute;left:300px;top:280px;width:380px;height:380px;border-radius:50%;background:#C8705A"></div>
+          <div style="position:absolute;left:600px;top:230px;width:480px;height:480px;border-radius:50%;background:#C8705A"></div>
+          <div style="position:absolute;left:120px;top:305px;width:280px;height:280px;border-radius:50%;background:#7C3A39"></div>
+          <div style="position:absolute;left:470px;top:300px;width:330px;height:330px;border-radius:50%;background:#7C3A39"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:48px;background:#1B0F10"></div>
+          <div style="position:absolute;left:-40px;top:300px;width:160px;height:160px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:640px;top:290px;width:260px;height:260px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:360px;top:318px;width:120px;height:120px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:150px;top:-130px;width:220px;height:220px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:-60px;top:-110px;width:200px;height:200px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:620px;top:-170px;width:300px;height:260px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:250px;top:60px;width:3px;height:90px;background:#1B0F10;border-radius:2px"></div>
+          <div style="position:absolute;left:290px;top:70px;width:3px;height:130px;background:#1B0F10;border-radius:2px"></div>
+          <div style="position:absolute;left:700px;top:70px;width:3px;height:110px;background:#1B0F10;border-radius:2px"></div>
+
+          <div style="position:absolute;left:0;right:0;top:118px;display:flex;flex-direction:column;align-items:center;gap:6px">
+            <span style="font-size:76px;font-weight:700;letter-spacing:.04em;color:#1B0F10;line-height:1">HOLLOWDRIFT</span>
+            <span style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.3em;color:#1B0F10">A SEED'S LONG WAY HOME</span>
+          </div>
+          <div style="position:absolute;left:600px;top:96px;width:60px;height:60px;transform:scale(.8) rotate(8deg)">
+            <div style="position:absolute;left:29px;top:-16px;width:2px;height:14px;background:#5E7A3A;border-radius:2px"></div>
+            <div style="position:absolute;left:31px;top:-21px;width:14px;height:7px;background:#9BC46A;border-radius:50%;transform:rotate(-25deg)"></div>
+            <div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5,0 0 40px 12px rgba(255,236,190,.6)"></div>
+            <div style="position:absolute;left:20px;top:16px;width:24px;height:24px;border-radius:50%;background:#1B0F10"></div>
+            <div style="position:absolute;left:31px;top:20px;width:7px;height:7px;border-radius:50%;background:#FFF"></div>
+            <div style="position:absolute;left:42px;top:38px;width:9px;height:6px;border-radius:50%;background:#EE9C86"></div>
+          </div>
+          <div style="position:absolute;left:0;right:0;bottom:66px;display:flex;justify-content:center">
+            <span style="font-size:20px;font-weight:500;color:#F6EBD5;letter-spacing:.06em">Hold anywhere to begin</span>
+          </div>
+          <div style="position:absolute;right:56px;top:28px;display:flex;gap:12px">
+            <div style="height:44px;padding:0 18px;border-radius:22px;border:1.5px solid rgba(27,15,16,.7);display:flex;align-items:center;font-size:16px;font-weight:500;color:#1B0F10">Skins</div>
+            <div style="height:44px;padding:0 18px;border-radius:22px;border:1.5px solid rgba(27,15,16,.7);display:flex;align-items:center;font-size:16px;font-weight:500;color:#1B0F10">Settings</div>
+          </div>
+          <div style="position:absolute;left:12px;top:135px;width:34px;height:120px;border-radius:20px;background:#000"></div>
+          <sc-if value="{{ showSafe }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:47px;right:47px;top:0;bottom:21px;outline:1.5px dashed #2FB5FF;outline-offset:-1px"></div></sc-if>
+        </div>
+      </div>
+      <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><p style="margin:0;font-size:17px;line-height:1.5;color:#4A433C;max-width:820px;text-wrap:pretty">The wordmark sits in the silhouette layer, so it reads as part of the world, not a UI layer on top. Puff floats near the sun and bobs slowly. The first hold starts the last unfinished level. No play button needed.</p></sc-if>
+    </div>
+
+    <!-- 02 WORLD SELECT -->
+    <div id="a2" style="display:flex;flex-direction:column;gap:16px;width:872px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#1E1A16;color:#ECE7DF;padding:4px 9px;border-radius:6px">A2</span><span style="font-size:22px;font-weight:600">World select</span></div>
+      <div style="width:872px;height:418px;padding:14px;box-sizing:border-box;background:#0B0A09;border-radius:60px;box-shadow:0 30px 60px -24px rgba(40,25,10,.45),inset 0 0 0 2px #2C2925">
+        <div style="position:relative;width:844px;height:390px;border-radius:46px;overflow:hidden;background:#140D0E">
+          <div style="position:absolute;left:64px;right:56px;top:26px;display:flex;align-items:center;justify-content:space-between">
+            <div style="display:flex;align-items:center;gap:16px">
+              <div style="width:44px;height:44px;border-radius:50%;border:1.5px solid rgba(246,235,213,.5);display:flex;align-items:center;justify-content:center;color:#F6EBD5;font-size:20px">‹</div>
+              <span style="font-size:28px;font-weight:600;color:#F6EBD5">Choose a world</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;color:#F6EBD5;font-size:18px;font-weight:500"><div style="width:12px;height:12px;border-radius:50%;background:#F2C386"></div>47 seeds</div>
+          </div>
+          <div style="position:absolute;left:64px;right:56px;top:96px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">
+            <div style="position:relative;height:262px;border-radius:24px;overflow:hidden;background:linear-gradient(180deg,#F2C386,#DC7A5E);box-shadow:0 0 0 3px #F6EBD5">
+              <div style="position:absolute;left:100px;top:30px;width:60px;height:60px;border-radius:50%;background:#FBE3B4;box-shadow:0 0 40px 14px rgba(251,227,180,.5)"></div>
+              <div style="position:absolute;left:-40px;top:140px;width:200px;height:200px;border-radius:50%;background:#7C3A39"></div>
+              <div style="position:absolute;left:90px;top:150px;width:180px;height:180px;border-radius:50%;background:#1B0F10"></div>
+              <div style="position:absolute;left:-30px;top:-60px;width:120px;height:120px;border-radius:50%;background:#1B0F10"></div>
+              <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 16px;display:flex;flex-direction:column;gap:2px;background:#1B0F10">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#C9B9A4">WORLD 1</span>
+                <span style="font-size:22px;font-weight:600;color:#F6EBD5">Mossdeep</span>
+                <span style="font-size:14px;color:#F2C386">38 / 60 seeds</span>
+              </div>
+            </div>
+            <div style="position:relative;height:262px;border-radius:24px;overflow:hidden;background:linear-gradient(180deg,#A9CCC6,#5E8C8E)">
+              <div style="position:absolute;left:20px;top:60px;width:26px;height:200px;background:#2F4C50"></div>
+              <div style="position:absolute;left:60px;top:90px;width:40px;height:200px;background:#2F4C50"></div>
+              <div style="position:absolute;left:120px;top:40px;width:22px;height:200px;background:#2F4C50"></div>
+              <div style="position:absolute;left:30px;top:150px;width:170px;height:170px;border-radius:50%;background:#0D1617"></div>
+              <div style="position:absolute;left:110px;top:70px;width:14px;height:14px;border-radius:50%;background:#F08A3C;box-shadow:0 0 16px 4px rgba(240,138,60,.6)"></div>
+              <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 16px;display:flex;flex-direction:column;gap:2px;background:#0D1617">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#9FB5B3">WORLD 2</span>
+                <span style="font-size:22px;font-weight:600;color:#F6EBD5">Rustwell</span>
+                <span style="font-size:14px;color:#A9CCC6">9 / 60 seeds</span>
+              </div>
+            </div>
+            <div style="position:relative;height:262px;border-radius:24px;overflow:hidden;background:linear-gradient(180deg,#2F6F9A,#173B5E)">
+              <div style="position:absolute;left:-30px;top:160px;width:160px;height:160px;border-radius:50%;background:#050E18"></div>
+              <div style="position:absolute;left:100px;top:180px;width:140px;height:140px;border-radius:50%;background:#050E18"></div>
+              <div style="position:absolute;left:60px;top:50px;width:10px;height:10px;border-radius:50%;border:1.5px solid rgba(255,255,255,.5)"></div>
+              <div style="position:absolute;left:84px;top:80px;width:6px;height:6px;border-radius:50%;border:1.5px solid rgba(255,255,255,.5)"></div>
+              <div style="position:absolute;inset:0;background:rgba(10,8,12,.55);display:flex;align-items:center;justify-content:center;padding:0 20px;text-align:center;padding-bottom:70px">
+                <span style="font-size:15px;line-height:1.35;color:#F6EBD5">Collect 90 seeds<br>to open</span>
+              </div>
+              <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 16px;display:flex;flex-direction:column;gap:2px;background:#050E18">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#8DA3B8">WORLD 3</span>
+                <span style="font-size:22px;font-weight:600;color:#8DA3B8">Brinefall</span>
+                <span style="font-size:14px;color:#8DA3B8">Locked</span>
+              </div>
+            </div>
+            <div style="position:relative;height:262px;border-radius:24px;overflow:hidden;background:linear-gradient(180deg,#8E7BC9,#3D2F6E)">
+              <div style="position:absolute;left:40px;top:110px;width:80px;height:80px;border-radius:50%;background:#0B0718"></div>
+              <div style="position:absolute;left:120px;top:60px;width:40px;height:40px;border-radius:50%;background:#0B0718"></div>
+              <div style="position:absolute;left:30px;top:40px;width:4px;height:4px;border-radius:50%;background:#F6D36B"></div>
+              <div style="position:absolute;left:150px;top:140px;width:3px;height:3px;border-radius:50%;background:#F6D36B"></div>
+              <div style="position:absolute;inset:0;background:rgba(10,8,12,.55);display:flex;align-items:center;justify-content:center;padding:0 20px;text-align:center;padding-bottom:70px">
+                <span style="font-size:15px;line-height:1.35;color:#F6EBD5">Finish Brinefall<br>to open</span>
+              </div>
+              <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 16px;display:flex;flex-direction:column;gap:2px;background:#0B0718">
+                <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#A398C4">WORLD 4</span>
+                <span style="font-size:22px;font-weight:600;color:#A398C4">Stillsky</span>
+                <span style="font-size:14px;color:#A398C4">Locked</span>
+              </div>
+            </div>
+          </div>
+          <div style="position:absolute;left:12px;top:135px;width:34px;height:120px;border-radius:20px;background:#000"></div>
+          <sc-if value="{{ showSafe }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:47px;right:47px;top:0;bottom:21px;outline:1.5px dashed #2FB5FF;outline-offset:-1px"></div></sc-if>
+        </div>
+      </div>
+      <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><p style="margin:0;font-size:17px;line-height:1.5;color:#4A433C;max-width:820px;text-wrap:pretty">Each card is a small slice of its world's palette, so players learn the biomes before they enter them. Worlds unlock by total seeds, not by finishing every level, so a hard level never blocks progress.</p></sc-if>
+    </div>
+
+    <!-- 03 LEVEL MAP -->
+    <div id="a3" style="display:flex;flex-direction:column;gap:16px;width:872px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#1E1A16;color:#ECE7DF;padding:4px 9px;border-radius:6px">A3</span><span style="font-size:22px;font-weight:600">Level map · Mossdeep</span></div>
+      <div style="width:872px;height:418px;padding:14px;box-sizing:border-box;background:#0B0A09;border-radius:60px;box-shadow:0 30px 60px -24px rgba(40,25,10,.45),inset 0 0 0 2px #2C2925">
+        <div style="position:relative;width:844px;height:390px;border-radius:46px;overflow:hidden;background:linear-gradient(180deg,#E9A877 0%,#C8705A 100%)">
+          <div style="position:absolute;left:-60px;top:280px;width:360px;height:360px;border-radius:50%;background:#7C3A39"></div>
+          <div style="position:absolute;left:360px;top:300px;width:420px;height:420px;border-radius:50%;background:#7C3A39"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:30px;background:#1B0F10"></div>
+          <div style="position:absolute;left:180px;top:-140px;width:240px;height:220px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:600px;top:-160px;width:320px;height:240px;border-radius:50%;background:#1B0F10"></div>
+          <svg style="position:absolute;left:0;top:0" width="844" height="390"><polyline points="110,250 180,180 260,230 340,160 420,210 500,140 580,200 660,150 740,215 790,160" fill="none" stroke="#1B0F10" stroke-width="3" stroke-dasharray="2 9" stroke-linecap="round"></polyline></svg>
+
+          <div style="position:absolute;left:87px;top:227px;width:46px;height:46px;border-radius:50%;background:#F6EBD5;color:#1B0F10;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px">1</div>
+          <div style="position:absolute;left:157px;top:157px;width:46px;height:46px;border-radius:50%;background:#F6EBD5;color:#1B0F10;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px">2</div>
+          <div style="position:absolute;left:237px;top:207px;width:46px;height:46px;border-radius:50%;background:#F6EBD5;color:#1B0F10;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px">3</div>
+          <div style="position:absolute;left:311px;top:131px;width:58px;height:58px;border-radius:50%;background:#F6EBD5;color:#1B0F10;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:22px;box-shadow:0 0 0 6px rgba(246,235,213,.35),0 0 30px 8px rgba(255,236,190,.6)">4</div>
+          <div style="position:absolute;left:397px;top:187px;width:46px;height:46px;border-radius:50%;background:#1B0F10;border:1.5px solid rgba(246,235,213,.35);box-sizing:border-box;color:#8A7468;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px">5</div>
+          <div style="position:absolute;left:477px;top:117px;width:46px;height:46px;border-radius:50%;background:#1B0F10;border:1.5px solid rgba(246,235,213,.35);box-sizing:border-box;color:#8A7468;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px">6</div>
+          <div style="position:absolute;left:557px;top:177px;width:46px;height:46px;border-radius:50%;background:#1B0F10;border:1.5px solid rgba(246,235,213,.35);box-sizing:border-box;color:#8A7468;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px">7</div>
+          <div style="position:absolute;left:637px;top:127px;width:46px;height:46px;border-radius:50%;background:#1B0F10;border:1.5px solid rgba(246,235,213,.35);box-sizing:border-box;color:#8A7468;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px">8</div>
+          <div style="position:absolute;left:717px;top:192px;width:46px;height:46px;border-radius:50%;background:#1B0F10;border:1.5px solid rgba(246,235,213,.35);box-sizing:border-box;color:#8A7468;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:18px">9</div>
+
+          <div style="position:absolute;left:92px;top:280px;display:flex;gap:5px"><div style="width:9px;height:9px;border-radius:50%;background:#1B0F10"></div><div style="width:9px;height:9px;border-radius:50%;background:#1B0F10"></div><div style="width:9px;height:9px;border-radius:50%;background:#1B0F10"></div></div>
+          <div style="position:absolute;left:162px;top:210px;display:flex;gap:5px"><div style="width:9px;height:9px;border-radius:50%;background:#1B0F10"></div><div style="width:9px;height:9px;border-radius:50%;background:#1B0F10"></div><div style="width:9px;height:9px;border-radius:50%;border:1.5px solid #1B0F10;box-sizing:border-box"></div></div>
+          <div style="position:absolute;left:242px;top:260px;display:flex;gap:5px"><div style="width:9px;height:9px;border-radius:50%;background:#1B0F10"></div><div style="width:9px;height:9px;border-radius:50%;border:1.5px solid #1B0F10;box-sizing:border-box"></div><div style="width:9px;height:9px;border-radius:50%;border:1.5px solid #1B0F10;box-sizing:border-box"></div></div>
+
+          <div style="position:absolute;left:310px;top:70px;width:60px;height:60px;transform:scale(.55)">
+            <div style="position:absolute;left:29px;top:-16px;width:2px;height:14px;background:#5E7A3A;border-radius:2px"></div>
+            <div style="position:absolute;left:31px;top:-21px;width:14px;height:7px;background:#9BC46A;border-radius:50%;transform:rotate(-25deg)"></div>
+            <div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5"></div>
+            <div style="position:absolute;left:18px;top:20px;width:24px;height:24px;border-radius:50%;background:#1B0F10"></div>
+            <div style="position:absolute;left:29px;top:24px;width:7px;height:7px;border-radius:50%;background:#FFF"></div>
+            <div style="position:absolute;left:42px;top:38px;width:9px;height:6px;border-radius:50%;background:#EE9C86"></div>
+          </div>
+
+          <div style="position:absolute;left:64px;top:26px;display:flex;align-items:center;gap:16px">
+            <div style="width:44px;height:44px;border-radius:50%;border:1.5px solid rgba(27,15,16,.7);display:flex;align-items:center;justify-content:center;color:#1B0F10;font-size:20px">‹</div>
+            <div style="display:flex;flex-direction:column"><span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.12em;color:#1B0F10">WORLD 1</span><span style="font-size:24px;font-weight:600;color:#1B0F10;line-height:1.1">Mossdeep</span></div>
+          </div>
+          <div style="position:absolute;right:56px;bottom:40px;width:380px;box-sizing:border-box;padding:10px 10px 10px 20px;border-radius:20px;background:#1B0F10;display:flex;align-items:center;gap:14px">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font-size:18px;font-weight:600;color:#F6EBD5">1-4 Bramble Run</span><span style="font-size:13px;color:#C9B9A4;line-height:1.3">First Split bubble. Bring 5 clones home.</span></div>
+            <div style="height:48px;padding:0 26px;border-radius:24px;background:#F6EBD5;color:#1B0F10;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600">Play</div>
+          </div>
+          <div style="position:absolute;left:12px;top:135px;width:34px;height:120px;border-radius:20px;background:#000"></div>
+          <sc-if value="{{ showSafe }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:47px;right:47px;top:0;bottom:21px;outline:1.5px dashed #2FB5FF;outline-offset:-1px"></div></sc-if>
+        </div>
+      </div>
+      <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><p style="margin:0;font-size:17px;line-height:1.5;color:#4A433C;max-width:820px;text-wrap:pretty">Each world has 20 levels laid out on a scrolling vine path. The three dots under a level are its seeds. Puff waits at the next level, and tapping a level opens a small card with its goal before play.</p></sc-if>
+    </div>
+
+    <!-- 04 GAMEPLAY -->
+    <div id="a4" style="display:flex;flex-direction:column;gap:16px;width:872px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#1E1A16;color:#ECE7DF;padding:4px 9px;border-radius:6px">A4</span><span style="font-size:22px;font-weight:600">Gameplay HUD · 1-4</span></div>
+      <div style="width:872px;height:418px;padding:14px;box-sizing:border-box;background:#0B0A09;border-radius:60px;box-shadow:0 30px 60px -24px rgba(40,25,10,.45),inset 0 0 0 2px #2C2925">
+        <div style="position:relative;width:844px;height:390px;border-radius:46px;overflow:hidden;background:linear-gradient(180deg,#F2C386 0%,#EB9A6C 68%,#DC7A5E 100%)">
+          <div style="position:absolute;left:640px;top:70px;width:120px;height:120px;border-radius:50%;background:#FBE3B4;box-shadow:0 0 80px 30px rgba(251,227,180,.5)"></div>
+          <div style="position:absolute;left:-100px;top:240px;width:420px;height:420px;border-radius:50%;background:#C8705A"></div>
+          <div style="position:absolute;left:380px;top:250px;width:520px;height:520px;border-radius:50%;background:#C8705A"></div>
+          <div style="position:absolute;left:200px;top:290px;width:300px;height:300px;border-radius:50%;background:#7C3A39"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:40px;background:#1B0F10"></div>
+          <div style="position:absolute;left:-60px;top:290px;width:240px;height:240px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:520px;top:300px;width:360px;height:280px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:-40px;top:-140px;width:260px;height:220px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:420px;top:-60px;width:90px;height:150px;background:#1B0F10;border-radius:0 0 10px 10px"></div>
+          <div style="position:absolute;left:430px;top:86px;width:70px;height:10px;background:repeating-linear-gradient(90deg,#1B0F10 0 8px,transparent 8px 14px)"></div>
+          <div style="position:absolute;left:250px;top:40px;width:3px;height:110px;background:#1B0F10"></div>
+          <div style="position:absolute;left:600px;top:218px;width:96px;height:96px;border-radius:50%;border:9px dotted #1B0F10;box-sizing:border-box"></div>
+          <div style="position:absolute;left:612px;top:230px;width:72px;height:72px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:645px;top:263px;width:6px;height:6px;border-radius:50%;background:#7C3A39"></div>
+
+          <div style="position:absolute;left:520px;top:170px;width:44px;height:44px;border-radius:50%;border:2px solid rgba(255,250,240,.85);background:rgba(200,240,190,.25);box-shadow:0 0 22px 4px rgba(200,240,190,.45);display:flex;align-items:center;justify-content:center;gap:3px;box-sizing:border-box"><div style="width:11px;height:11px;border-radius:50%;background:#F6EBD5"></div><div style="width:11px;height:11px;border-radius:50%;background:#F6EBD5"></div></div>
+          <div style="position:absolute;left:360px;top:210px;width:14px;height:14px;border-radius:50%;background:#F2C386;box-shadow:0 0 0 3px #1B0F10,0 0 18px 6px rgba(255,236,190,.7)"></div>
+
+          <div style="position:absolute;left:250px;top:170px;width:60px;height:60px;transform:scale(.75) rotate(-6deg)">
+            <div style="position:absolute;left:29px;top:-16px;width:2px;height:14px;background:#5E7A3A;border-radius:2px"></div>
+            <div style="position:absolute;left:31px;top:-21px;width:14px;height:7px;background:#9BC46A;border-radius:50%;transform:rotate(-25deg)"></div>
+            <div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5,0 0 40px 12px rgba(255,236,190,.6)"></div>
+            <div style="position:absolute;left:22px;top:14px;width:24px;height:24px;border-radius:50%;background:#1B0F10"></div>
+            <div style="position:absolute;left:33px;top:18px;width:7px;height:7px;border-radius:50%;background:#FFF"></div>
+            <div style="position:absolute;left:42px;top:38px;width:9px;height:6px;border-radius:50%;background:#EE9C86"></div>
+          </div>
+          <div style="position:absolute;left:200px;top:210px;width:60px;height:60px;transform:scale(.5)">
+            <div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5"></div>
+            <div style="position:absolute;left:22px;top:14px;width:24px;height:24px;border-radius:50%;background:#1B0F10"></div>
+            <div style="position:absolute;left:33px;top:18px;width:7px;height:7px;border-radius:50%;background:#FFF"></div>
+          </div>
+          <div style="position:absolute;left:206px;top:146px;width:60px;height:60px;transform:scale(.45)">
+            <div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5"></div>
+            <div style="position:absolute;left:22px;top:14px;width:24px;height:24px;border-radius:50%;background:#1B0F10"></div>
+            <div style="position:absolute;left:33px;top:18px;width:7px;height:7px;border-radius:50%;background:#FFF"></div>
+          </div>
+
+          <div style="position:absolute;left:60px;top:22px;width:44px;height:44px;border-radius:50%;background:rgba(27,15,16,.35);border:1.5px solid rgba(246,235,213,.7);box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:5px"><div style="width:4px;height:14px;border-radius:2px;background:#F6EBD5"></div><div style="width:4px;height:14px;border-radius:2px;background:#F6EBD5"></div></div>
+          <div style="position:absolute;left:322px;top:34px;width:200px;height:20px;display:flex;align-items:center">
+            <div style="position:relative;width:200px;height:5px;border-radius:3px;background:rgba(27,15,16,.3)"><div style="width:62%;height:5px;border-radius:3px;background:#1B0F10"></div><div style="position:absolute;left:62%;top:-4px;width:13px;height:13px;margin-left:-6px;border-radius:50%;background:#F6EBD5;box-shadow:0 0 0 2px #1B0F10"></div><div style="position:absolute;left:45%;top:-2px;width:2px;height:9px;background:#1B0F10"></div></div>
+          </div>
+          <div style="position:absolute;right:56px;top:22px;height:44px;display:flex;align-items:center;gap:16px">
+            <div style="display:flex;gap:6px"><div style="width:14px;height:14px;border-radius:50%;background:#F2C386;box-shadow:0 0 0 2.5px #1B0F10"></div><div style="width:14px;height:14px;border-radius:50%;background:#F2C386;box-shadow:0 0 0 2.5px #1B0F10"></div><div style="width:14px;height:14px;border-radius:50%;box-shadow:inset 0 0 0 2.5px #1B0F10"></div></div>
+            <div style="height:36px;padding:0 14px 0 8px;border-radius:18px;background:#1B0F10;display:flex;align-items:center;gap:8px"><div style="width:20px;height:20px;border-radius:50%;background:#F6EBD5"></div><span style="font-size:18px;font-weight:600;color:#F6EBD5">×3</span></div>
+          </div>
+          <div style="position:absolute;left:12px;top:135px;width:34px;height:120px;border-radius:20px;background:#000"></div>
+          <sc-if value="{{ showSafe }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:47px;right:47px;top:0;bottom:21px;outline:1.5px dashed #2FB5FF;outline-offset:-1px"></div></sc-if>
+        </div>
+      </div>
+      <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><p style="margin:0;font-size:17px;line-height:1.5;color:#4A433C;max-width:820px;text-wrap:pretty">The HUD has three parts: pause, level progress (the tick marks the checkpoint), and seeds plus a live clone count. Everything sits in the top 70pt so thumbs on the lower screen never cover it. Hazards are pure black. Things that help you glow.</p></sc-if>
+    </div>
+
+    <!-- 05 PAUSE -->
+    <div id="a5" style="display:flex;flex-direction:column;gap:16px;width:872px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#1E1A16;color:#ECE7DF;padding:4px 9px;border-radius:6px">A5</span><span style="font-size:22px;font-weight:600">Pause</span></div>
+      <div style="width:872px;height:418px;padding:14px;box-sizing:border-box;background:#0B0A09;border-radius:60px;box-shadow:0 30px 60px -24px rgba(40,25,10,.45),inset 0 0 0 2px #2C2925">
+        <div style="position:relative;width:844px;height:390px;border-radius:46px;overflow:hidden;background:linear-gradient(180deg,#F2C386 0%,#EB9A6C 68%,#DC7A5E 100%)">
+          <div style="position:absolute;left:640px;top:70px;width:120px;height:120px;border-radius:50%;background:#FBE3B4"></div>
+          <div style="position:absolute;left:-100px;top:240px;width:420px;height:420px;border-radius:50%;background:#C8705A"></div>
+          <div style="position:absolute;left:380px;top:250px;width:520px;height:520px;border-radius:50%;background:#C8705A"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:40px;background:#1B0F10"></div>
+          <div style="position:absolute;left:-60px;top:290px;width:240px;height:240px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:520px;top:300px;width:360px;height:280px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:-40px;top:-140px;width:260px;height:220px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;inset:0;background:rgba(20,11,12,.72)"></div>
+          <div style="position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+              <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.2em;color:#C9B9A4">1-4 · BRAMBLE RUN</span>
+              <span style="font-size:44px;font-weight:600;color:#F6EBD5">Paused</span>
+            </div>
+            <div style="display:flex;gap:14px">
+              <div style="height:52px;width:180px;border-radius:26px;background:#F6EBD5;color:#1B0F10;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:600">Resume</div>
+              <div style="height:52px;width:150px;border-radius:26px;border:1.5px solid rgba(246,235,213,.6);box-sizing:border-box;color:#F6EBD5;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:500">Restart</div>
+              <div style="height:52px;width:150px;border-radius:26px;border:1.5px solid rgba(246,235,213,.6);box-sizing:border-box;color:#F6EBD5;display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:500">Map</div>
+            </div>
+            <div style="display:flex;gap:28px;font-size:16px;color:#C9B9A4">
+              <div style="display:flex;align-items:center;gap:10px">Music<div style="width:40px;height:24px;border-radius:12px;background:#F2C386;position:relative"><div style="position:absolute;right:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#1B0F10"></div></div></div>
+              <div style="display:flex;align-items:center;gap:10px">Sound<div style="width:40px;height:24px;border-radius:12px;background:#F2C386;position:relative"><div style="position:absolute;right:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#1B0F10"></div></div></div>
+              <div style="display:flex;align-items:center;gap:10px">Haptics<div style="width:40px;height:24px;border-radius:12px;background:rgba(246,235,213,.2);position:relative"><div style="position:absolute;left:3px;top:3px;width:18px;height:18px;border-radius:50%;background:#C9B9A4"></div></div></div>
+            </div>
+          </div>
+          <div style="position:absolute;left:12px;top:135px;width:34px;height:120px;border-radius:20px;background:#000"></div>
+          <sc-if value="{{ showSafe }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:47px;right:47px;top:0;bottom:21px;outline:1.5px dashed #2FB5FF;outline-offset:-1px"></div></sc-if>
+        </div>
+      </div>
+      <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><p style="margin:0;font-size:17px;line-height:1.5;color:#4A433C;max-width:820px;text-wrap:pretty">The world stays visible behind a dark overlay so pausing doesn't break the mood. Resume is the only filled button. Settings are three toggles here, with no separate settings screen mid-level.</p></sc-if>
+    </div>
+
+    <!-- 06 CLEAR -->
+    <div id="a6" style="display:flex;flex-direction:column;gap:16px;width:872px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#1E1A16;color:#ECE7DF;padding:4px 9px;border-radius:6px">A6</span><span style="font-size:22px;font-weight:600">Level clear</span></div>
+      <div style="width:872px;height:418px;padding:14px;box-sizing:border-box;background:#0B0A09;border-radius:60px;box-shadow:0 30px 60px -24px rgba(40,25,10,.45),inset 0 0 0 2px #2C2925">
+        <div style="position:relative;width:844px;height:390px;border-radius:46px;overflow:hidden;background:linear-gradient(180deg,#F6D7A2 0%,#F2C386 60%,#EB9A6C 100%)">
+          <div style="position:absolute;left:330px;top:40px;width:190px;height:190px;border-radius:50%;background:#FBE3B4;box-shadow:0 0 120px 60px rgba(251,227,180,.6)"></div>
+          <div style="position:absolute;left:-80px;top:270px;width:460px;height:460px;border-radius:50%;background:#C8705A"></div>
+          <div style="position:absolute;left:480px;top:270px;width:460px;height:460px;border-radius:50%;background:#C8705A"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:54px;background:#1B0F10"></div>
+          <div style="position:absolute;left:340px;top:250px;width:164px;height:120px;border-radius:82px 82px 0 0;background:#1B0F10"></div>
+          <div style="position:absolute;left:392px;top:290px;width:60px;height:60px;border-radius:30px 30px 0 0;background:#F6D7A2;box-shadow:0 0 30px 10px rgba(255,236,190,.7)"></div>
+          <div style="position:absolute;left:0;right:0;top:64px;display:flex;flex-direction:column;align-items:center;gap:2px">
+            <span style="font-size:52px;font-weight:600;color:#1B0F10">Home.</span>
+            <span style="font-size:18px;color:#5A2A2A">4 of 5 clones made it</span>
+          </div>
+          <div style="position:absolute;left:0;right:0;top:174px;display:flex;justify-content:center;gap:12px">
+            <div style="width:26px;height:26px;border-radius:50%;background:#F6EBD5;box-shadow:0 0 0 3px #1B0F10,0 0 18px 6px rgba(255,236,190,.7)"></div>
+            <div style="width:26px;height:26px;border-radius:50%;background:#F6EBD5;box-shadow:0 0 0 3px #1B0F10,0 0 18px 6px rgba(255,236,190,.7)"></div>
+            <div style="width:26px;height:26px;border-radius:50%;box-shadow:inset 0 0 0 3px #1B0F10"></div>
+          </div>
+          <div style="position:absolute;left:64px;bottom:72px;display:flex;flex-direction:column;gap:4px">
+            <span style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;color:#1B0F10">TIME</span>
+            <span style="font-size:24px;font-weight:600;color:#1B0F10">1:42</span>
+          </div>
+          <div style="position:absolute;right:56px;bottom:72px;display:flex;gap:12px">
+            <div style="height:52px;padding:0 24px;border-radius:26px;border:1.5px solid #1B0F10;box-sizing:border-box;color:#1B0F10;display:flex;align-items:center;font-size:19px;font-weight:500">Replay</div>
+            <div style="height:52px;padding:0 30px;border-radius:26px;background:#1B0F10;color:#F6EBD5;display:flex;align-items:center;font-size:19px;font-weight:600">Next · 1-5</div>
+          </div>
+          <div style="position:absolute;left:12px;top:135px;width:34px;height:120px;border-radius:20px;background:#000"></div>
+          <sc-if value="{{ showSafe }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:47px;right:47px;top:0;bottom:21px;outline:1.5px dashed #2FB5FF;outline-offset:-1px"></div></sc-if>
+        </div>
+      </div>
+      <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><p style="margin:0;font-size:17px;line-height:1.5;color:#4A433C;max-width:820px;text-wrap:pretty">The level ends at a glowing burrow and the sky brightens. Clones saved is the main result. Seeds fill in one at a time with a soft chime, and the next level is one tap away.</p></sc-if>
+    </div>
+
+    <!-- 07 FAIL -->
+    <div id="a7" style="display:flex;flex-direction:column;gap:16px;width:872px">
+      <div style="display:flex;align-items:center;gap:12px"><span style="font-family:'JetBrains Mono',monospace;font-size:13px;background:#1E1A16;color:#ECE7DF;padding:4px 9px;border-radius:6px">A7</span><span style="font-size:22px;font-weight:600">Fail · last clone lost</span></div>
+      <div style="width:872px;height:418px;padding:14px;box-sizing:border-box;background:#0B0A09;border-radius:60px;box-shadow:0 30px 60px -24px rgba(40,25,10,.45),inset 0 0 0 2px #2C2925">
+        <div style="position:relative;width:844px;height:390px;border-radius:46px;overflow:hidden;background:linear-gradient(180deg,#B9786A 0%,#7C3A39 100%)">
+          <div style="position:absolute;left:-100px;top:240px;width:420px;height:420px;border-radius:50%;background:#5A2A2A"></div>
+          <div style="position:absolute;left:380px;top:250px;width:520px;height:520px;border-radius:50%;background:#5A2A2A"></div>
+          <div style="position:absolute;left:0;right:0;bottom:0;height:40px;background:#1B0F10"></div>
+          <div style="position:absolute;left:520px;top:300px;width:360px;height:280px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:-40px;top:-140px;width:260px;height:220px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:580px;top:110px;width:120px;height:120px;border-radius:50%;border:11px dotted #1B0F10;box-sizing:border-box"></div>
+          <div style="position:absolute;left:594px;top:124px;width:92px;height:92px;border-radius:50%;background:#1B0F10"></div>
+          <div style="position:absolute;left:556px;top:160px;width:18px;height:6px;border-radius:3px;background:#F6EBD5;transform:rotate(-30deg)"></div>
+          <div style="position:absolute;left:546px;top:178px;width:12px;height:5px;border-radius:3px;background:#F6EBD5;transform:rotate(10deg)"></div>
+          <div style="position:absolute;left:560px;top:196px;width:14px;height:5px;border-radius:3px;background:#F6EBD5;transform:rotate(40deg)"></div>
+          <div style="position:absolute;left:64px;top:96px;display:flex;flex-direction:column;gap:6px;max-width:420px">
+            <span style="font-size:48px;font-weight:600;color:#F6EBD5;line-height:1.05">Shredded.</span>
+            <span style="font-size:19px;color:#E8CFC0">The thornwheel got your last clone.</span>
+          </div>
+          <div style="position:absolute;left:64px;top:232px;display:flex;gap:12px">
+            <div style="height:56px;padding:0 30px;border-radius:28px;background:#F6EBD5;color:#1B0F10;display:flex;align-items:center;font-size:20px;font-weight:600">Retry from checkpoint</div>
+            <div style="height:56px;padding:0 24px;border-radius:28px;border:1.5px solid rgba(246,235,213,.6);box-sizing:border-box;color:#F6EBD5;display:flex;align-items:center;font-size:19px;font-weight:500">Restart</div>
+          </div>
+          <div style="position:absolute;left:12px;top:135px;width:34px;height:120px;border-radius:20px;background:#000"></div>
+          <sc-if value="{{ showSafe }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;left:47px;right:47px;top:0;bottom:21px;outline:1.5px dashed #2FB5FF;outline-offset:-1px"></div></sc-if>
+        </div>
+      </div>
+      <sc-if value="{{ showNotes }}" hint-placeholder-val="{{ true }}"><p style="margin:0;font-size:17px;line-height:1.5;color:#4A433C;max-width:820px;text-wrap:pretty">Failing should be quick and a bit funny, never a punishment. The sky drains of warmth, the cause of death gets a one-word title, and the main button returns you to the last checkpoint in under a second. No lives, no timers.</p></sc-if>
+    </div>
+
+  </div>
+</section>
+
+<section id="character" style="display:flex;flex-direction:column;gap:40px">
+  <div style="display:flex;align-items:baseline;gap:20px;border-bottom:2px solid #1E1A16;padding-bottom:16px">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#6B635A">B</span>
+    <h2 style="margin:0;font-size:40px;font-weight:600">Puff · character sheet</h2>
+    <span style="font-size:18px;color:#6B635A">A dandelion seed that wandered too far from home</span>
+  </div>
+  <div style="display:grid;grid-template-columns:600px minmax(0,1fr);gap:56px">
+    <div style="position:relative;height:520px;border-radius:32px;overflow:hidden;background:linear-gradient(180deg,#F2C386,#DC7A5E)">
+      <div style="position:absolute;left:180px;top:120px;width:240px;height:240px;border-radius:50%;background:#FBE3B4;box-shadow:0 0 120px 50px rgba(251,227,180,.5)"></div>
+      <div style="position:absolute;left:-60px;top:400px;width:360px;height:360px;border-radius:50%;background:#1B0F10"></div>
+      <div style="position:absolute;left:330px;top:420px;width:380px;height:380px;border-radius:50%;background:#1B0F10"></div>
+      <div style="position:absolute;left:240px;top:180px;width:60px;height:60px;transform:scale(2.6)">
+        <div style="position:absolute;left:29px;top:-16px;width:2px;height:14px;background:#5E7A3A;border-radius:2px"></div>
+        <div style="position:absolute;left:31px;top:-21px;width:14px;height:7px;background:#9BC46A;border-radius:50%;transform:rotate(-25deg)"></div>
+        <div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5"></div>
+        <div style="position:absolute;left:20px;top:16px;width:24px;height:24px;border-radius:50%;background:#1B0F10"></div>
+        <div style="position:absolute;left:31px;top:20px;width:7px;height:7px;border-radius:50%;background:#FFF"></div>
+        <div style="position:absolute;left:42px;top:38px;width:9px;height:6px;border-radius:50%;background:#EE9C86"></div>
+      </div>
+      <span style="position:absolute;left:28px;top:24px;font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.12em;color:#1B0F10">PLACEHOLDER BUILD · FINAL ART BY ILLUSTRATOR</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:36px">
+      <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;font-size:17px;line-height:1.5">
+        <div style="display:flex;flex-direction:column;gap:6px"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Silhouette</span><span style="text-wrap:pretty">Round body with a fuzzy rim of 8 tufts. It should read clearly at 24pt against black.</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Signature</span><span style="text-wrap:pretty">A sprout on its head is the only green in the game. It droops when Puff is hurt and perks up in light.</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Personality</span><span style="text-wrap:pretty">Curious and easily startled. One big eye looks toward the next hazard, which doubles as a gameplay tell.</span></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">States</span>
+        <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px">
+          <div style="display:flex;flex-direction:column;gap:10px"><div style="height:160px;border-radius:20px;background:#1B0F10;display:flex;align-items:center;justify-content:center"><div style="position:relative;width:60px;height:60px;transform:scale(1.2)"><div style="position:absolute;left:29px;top:-16px;width:2px;height:14px;background:#5E7A3A"></div><div style="position:absolute;left:31px;top:-21px;width:14px;height:7px;background:#9BC46A;border-radius:50%;transform:rotate(-25deg)"></div><div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5"></div><div style="position:absolute;left:20px;top:16px;width:24px;height:24px;border-radius:50%;background:#1B0F10"></div><div style="position:absolute;left:31px;top:20px;width:7px;height:7px;border-radius:50%;background:#FFF"></div></div></div><span style="font-size:17px;font-weight:600">Drift</span><span style="font-size:15px;color:#6B635A;line-height:1.4">Slow fall, slight sway</span></div>
+          <div style="display:flex;flex-direction:column;gap:10px"><div style="height:160px;border-radius:20px;background:#1B0F10;display:flex;align-items:center;justify-content:center"><div style="position:relative;width:60px;height:60px;transform:scale(1.1,1.35)"><div style="position:absolute;left:29px;top:-16px;width:2px;height:14px;background:#5E7A3A"></div><div style="position:absolute;left:31px;top:-21px;width:14px;height:7px;background:#9BC46A;border-radius:50%;transform:rotate(-55deg)"></div><div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5,0 0 30px 10px rgba(255,236,190,.5)"></div><div style="position:absolute;left:20px;top:12px;width:24px;height:24px;border-radius:50%;background:#1B0F10"></div><div style="position:absolute;left:31px;top:15px;width:7px;height:7px;border-radius:50%;background:#FFF"></div></div></div><span style="font-size:17px;font-weight:600">Puff</span><span style="font-size:15px;color:#6B635A;line-height:1.4">Stretch up while held</span></div>
+          <div style="display:flex;flex-direction:column;gap:10px"><div style="height:160px;border-radius:20px;background:#1B0F10;display:flex;align-items:center;justify-content:center"><div style="position:relative;width:60px;height:60px;transform:scale(1.45,.85)"><div style="position:absolute;left:29px;top:-12px;width:2px;height:10px;background:#5E7A3A"></div><div style="position:absolute;left:18px;top:-12px;width:14px;height:7px;background:#9BC46A;border-radius:50%;transform:rotate(35deg)"></div><div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5"></div><div style="position:absolute;left:18px;top:26px;width:24px;height:5px;border-radius:3px;background:#1B0F10"></div></div></div><span style="font-size:17px;font-weight:600">Bonk</span><span style="font-size:15px;color:#6B635A;line-height:1.4">Squash on a wall, eye squints</span></div>
+          <div style="display:flex;flex-direction:column;gap:10px"><div style="height:160px;border-radius:20px;background:#1B0F10;display:flex;align-items:center;justify-content:center;gap:8px"><div style="position:relative;width:60px;height:60px;transform:scale(.6)"><div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5"></div><div style="position:absolute;left:20px;top:16px;width:24px;height:24px;border-radius:50%;background:#1B0F10"></div></div><div style="position:relative;width:60px;height:60px;transform:scale(.8)"><div style="position:absolute;left:29px;top:-16px;width:2px;height:14px;background:#5E7A3A"></div><div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:0 -24px 0 -16px #F6EBD5,17px -17px 0 -16px #F6EBD5,24px 0 0 -16px #F6EBD5,17px 17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-17px 17px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5,-17px -17px 0 -16px #F6EBD5"></div><div style="position:absolute;left:20px;top:16px;width:24px;height:24px;border-radius:50%;background:#1B0F10"></div></div></div><span style="font-size:17px;font-weight:600">Clone</span><span style="font-size:15px;color:#6B635A;line-height:1.4">Clones have no sprout. Only the leader does.</span></div>
+          <div style="display:flex;flex-direction:column;gap:10px"><div style="height:160px;border-radius:20px;background:#1B0F10;display:flex;align-items:center;justify-content:center"><div style="position:relative;width:60px;height:60px;transform:scale(1.1) rotate(25deg);opacity:.8"><div style="position:absolute;left:29px;top:-12px;width:2px;height:10px;background:#5E7A3A"></div><div style="position:absolute;left:31px;top:-6px;width:14px;height:7px;background:#9BC46A;border-radius:50%;transform:rotate(60deg)"></div><div style="position:absolute;inset:0;border-radius:50%;background:#F6EBD5;box-shadow:17px -17px 0 -16px #F6EBD5,0 24px 0 -16px #F6EBD5,-24px 0 0 -16px #F6EBD5"></div><div style="position:absolute;left:24px;top:24px;width:16px;height:4px;background:#1B0F10;transform:rotate(45deg)"></div><div style="position:absolute;left:24px;top:24px;width:16px;height:4px;background:#1B0F10;transform:rotate(-45deg)"></div></div></div><span style="font-size:17px;font-weight:600">Lost</span><span style="font-size:15px;color:#6B635A;line-height:1.4">Tufts scatter, sprout wilts</span></div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Size scale (Swell / Shrink)</span>
+        <div style="height:120px;border-radius:20px;background:#1B0F10;display:flex;align-items:center;justify-content:space-around;padding:0 40px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:24px;height:24px;border-radius:50%;background:#F6EBD5"></div><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#C9B9A4">0.5× · fits gaps</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:48px;height:48px;border-radius:50%;background:#F6EBD5"></div><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#C9B9A4">1×</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:84px;height:84px;margin-top:-20px;border-radius:50%;background:#F6EBD5"></div><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#C9B9A4">1.8× · heavy, pushes</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="objects" style="display:flex;flex-direction:column;gap:40px">
+  <div style="display:flex;align-items:baseline;gap:20px;border-bottom:2px solid #1E1A16;padding-bottom:16px">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#6B635A">C</span>
+    <h2 style="margin:0;font-size:40px;font-weight:600">Power-ups &amp; hazards</h2>
+    <span style="font-size:18px;color:#6B635A">Helpful things glow. Harmful things are black.</span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px">
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="height:150px;border-radius:20px;background:linear-gradient(180deg,#F2C386,#DC7A5E);display:flex;align-items:center;justify-content:center"><div style="width:56px;height:56px;border-radius:50%;border:2.5px solid #FFF8EC;background:rgba(200,240,190,.3);box-shadow:0 0 26px 6px rgba(200,240,190,.6);box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:4px"><div style="width:14px;height:14px;border-radius:50%;background:#F6EBD5"></div><div style="width:14px;height:14px;border-radius:50%;background:#F6EBD5"></div></div></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:19px;font-weight:600">Split</span><span style="font-size:15px;color:#4A433C;line-height:1.4">+2 clones. Mint glow.</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="height:150px;border-radius:20px;background:linear-gradient(180deg,#F2C386,#DC7A5E);display:flex;align-items:center;justify-content:center"><div style="width:56px;height:56px;border-radius:50%;border:2.5px solid #FFF8EC;background:rgba(255,190,150,.35);box-shadow:0 0 26px 6px rgba(255,190,150,.65);box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:26px;height:26px;border-radius:50%;background:#F6EBD5"></div></div></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:19px;font-weight:600">Swell</span><span style="font-size:15px;color:#4A433C;line-height:1.4">Grow 1.8×. Heavy enough to tip ledges.</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="height:150px;border-radius:20px;background:linear-gradient(180deg,#F2C386,#DC7A5E);display:flex;align-items:center;justify-content:center"><div style="width:56px;height:56px;border-radius:50%;border:2.5px solid #FFF8EC;background:rgba(190,215,255,.35);box-shadow:0 0 26px 6px rgba(190,215,255,.65);box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:10px;height:10px;border-radius:50%;background:#F6EBD5"></div></div></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:19px;font-weight:600">Shrink</span><span style="font-size:15px;color:#4A433C;line-height:1.4">0.5×. Slips through bramble gaps.</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="height:150px;border-radius:20px;background:linear-gradient(180deg,#F2C386,#DC7A5E);display:flex;align-items:center;justify-content:center"><div style="width:56px;height:56px;border-radius:50%;border:2.5px solid #FFF8EC;background:rgba(255,230,140,.35);box-shadow:0 0 26px 6px rgba(255,230,140,.7);box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:2px"><div style="width:0;height:0;border-left:11px solid #F6EBD5;border-top:8px solid transparent;border-bottom:8px solid transparent"></div><div style="width:0;height:0;border-left:11px solid #F6EBD5;border-top:8px solid transparent;border-bottom:8px solid transparent"></div></div></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:19px;font-weight:600">Gust</span><span style="font-size:15px;color:#4A433C;line-height:1.4">Speeds up time for 4s.</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="height:150px;border-radius:20px;background:linear-gradient(180deg,#F2C386,#DC7A5E);display:flex;align-items:center;justify-content:center"><div style="width:56px;height:56px;border-radius:50%;border:2.5px solid #FFF8EC;background:rgba(220,190,255,.35);box-shadow:0 0 26px 6px rgba(220,190,255,.65);box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:4px"><div style="width:5px;height:16px;border-radius:3px;background:#F6EBD5"></div><div style="width:5px;height:16px;border-radius:3px;background:#F6EBD5"></div></div></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:19px;font-weight:600">Hush</span><span style="font-size:15px;color:#4A433C;line-height:1.4">Slows time for precision runs.</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="height:150px;border-radius:20px;background:linear-gradient(180deg,#F2C386,#DC7A5E);display:flex;align-items:center;justify-content:center"><div style="width:56px;height:56px;border-radius:50%;border:2.5px solid #FFF8EC;background:rgba(255,200,220,.35);box-shadow:0 0 26px 6px rgba(255,200,220,.65);box-sizing:border-box;display:flex;align-items:center;justify-content:center"><div style="width:22px;height:22px;border-radius:50%;border:3px dotted #F6EBD5;box-sizing:border-box"></div></div></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:19px;font-weight:600">Burr</span><span style="font-size:15px;color:#4A433C;line-height:1.4">Sticks to surfaces and clones bunch up.</span></div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px">
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="height:170px;border-radius:20px;background:linear-gradient(180deg,#EB9A6C,#C8705A);display:flex;align-items:center;justify-content:center"><div style="position:relative;width:90px;height:90px;border-radius:50%;border:9px dotted #1B0F10;box-sizing:border-box"><div style="position:absolute;inset:6px;border-radius:50%;background:#1B0F10"></div></div></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:19px;font-weight:600">Thornwheel</span><span style="font-size:15px;color:#4A433C;line-height:1.4">Spinning bramble disc. Instant loss on touch.</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="height:170px;border-radius:20px;background:linear-gradient(180deg,#EB9A6C,#C8705A);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px"><div style="width:90px;height:50px;background:#1B0F10;border-radius:0 0 8px 8px"></div><div style="width:90px;height:8px;background:repeating-linear-gradient(90deg,#1B0F10 0 8px,transparent 8px 14px)"></div></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:19px;font-weight:600">Rootcrusher</span><span style="font-size:15px;color:#4A433C;line-height:1.4">Slams on a beat. Watch the dust fall before it drops.</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="height:170px;border-radius:20px;background:linear-gradient(180deg,#EB9A6C,#C8705A);display:flex;align-items:flex-end;justify-content:center;gap:8px;padding-bottom:30px;box-sizing:border-box"><div style="width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:60px solid #1B0F10"></div><div style="width:0;height:0;border-left:12px solid transparent;border-right:12px solid transparent;border-bottom:44px solid #1B0F10"></div><div style="width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:70px solid #1B0F10"></div></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:19px;font-weight:600">Briar</span><span style="font-size:15px;color:#4A433C;line-height:1.4">Static spikes. Shrink to pass between them.</span></div></div>
+    <div style="display:flex;flex-direction:column;gap:12px"><div style="height:170px;border-radius:20px;background:linear-gradient(180deg,#EB9A6C,#C8705A);display:flex;align-items:center;justify-content:center"><div style="width:70px;height:70px;border-radius:50%;background:#1B0F10;box-shadow:0 0 0 8px rgba(27,15,16,.35),0 0 0 18px rgba(27,15,16,.15)"></div></div><div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:19px;font-weight:600">Mawpit</span><span style="font-size:15px;color:#4A433C;line-height:1.4">Pulls nearby clones inward. Puff hard to escape.</span></div></div>
+  </div>
+</section>
+
+<section id="ui" style="display:flex;flex-direction:column;gap:40px">
+  <div style="display:flex;align-items:baseline;gap:20px;border-bottom:2px solid #1E1A16;padding-bottom:16px">
+    <span style="font-family:'JetBrains Mono',monospace;font-size:14px;color:#6B635A">D</span>
+    <h2 style="margin:0;font-size:40px;font-weight:600">UI kit</h2>
+    <span style="font-size:18px;color:#6B635A">Thin, quiet, and out of the way</span>
+  </div>
+  <div style="display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr) minmax(0,1fr);gap:48px">
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Palette · Mossdeep</span>
+      <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px">
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:80px;border-radius:14px;background:#F2C386"></div><span style="font-size:14px;font-weight:500">Sky</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B635A">#F2C386</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:80px;border-radius:14px;background:#C8705A"></div><span style="font-size:14px;font-weight:500">Far hills</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B635A">#C8705A</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:80px;border-radius:14px;background:#7C3A39"></div><span style="font-size:14px;font-weight:500">Mid</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B635A">#7C3A39</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:80px;border-radius:14px;background:#1B0F10"></div><span style="font-size:14px;font-weight:500">Play layer</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B635A">#1B0F10</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:80px;border-radius:14px;background:#F6EBD5;box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)"></div><span style="font-size:14px;font-weight:500">Puff / UI ink</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B635A">#F6EBD5</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:80px;border-radius:14px;background:#FBE3B4"></div><span style="font-size:14px;font-weight:500">Glow</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B635A">#FBE3B4</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:80px;border-radius:14px;background:#9BC46A"></div><span style="font-size:14px;font-weight:500">Sprout only</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B635A">#9BC46A</span></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="height:80px;border-radius:14px;background:#C9B9A4"></div><span style="font-size:14px;font-weight:500">Muted text</span><span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:#6B635A">#C9B9A4</span></div>
+      </div>
+      <p style="margin:0;font-size:15px;line-height:1.5;color:#4A433C;text-wrap:pretty">Each world keeps the same 4 depth layers and only changes their hue. The play layer is always the darkest value so collisions read at a glance.</p>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Type · Fredoka</span>
+      <div style="display:flex;flex-direction:column;gap:14px;padding:24px;border-radius:20px;background:#1B0F10;color:#F6EBD5">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:52px;font-weight:600;line-height:1">Home.</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#C9B9A4">Result 44–52</span></div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:28px;font-weight:600">Choose a world</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#C9B9A4">Title 24–28</span></div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:19px;font-weight:500">Resume</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#C9B9A4">Button 18–20</span></div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-size:15px;color:#C9B9A4">Bring 5 clones home.</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#C9B9A4">Body 14–16</span></div>
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px"><span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.14em">WORLD 1</span><span style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#C9B9A4">Label · Mono 11–12</span></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <span style="font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:#6B635A">Controls</span>
+      <div style="display:flex;flex-direction:column;gap:18px;padding:24px;border-radius:20px;background:#1B0F10">
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <div style="height:52px;padding:0 26px;border-radius:26px;background:#F6EBD5;color:#1B0F10;display:flex;align-items:center;font-size:18px;font-weight:600">Primary</div>
+          <div style="height:52px;padding:0 22px;border-radius:26px;border:1.5px solid rgba(246,235,213,.6);box-sizing:border-box;color:#F6EBD5;display:flex;align-items:center;font-size:18px;font-weight:500">Secondary</div>
+          <div style="width:44px;height:44px;align-self:center;border-radius:50%;border:1.5px solid rgba(246,235,213,.6);box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:5px"><div style="width:4px;height:14px;border-radius:2px;background:#F6EBD5"></div><div style="width:4px;height:14px;border-radius:2px;background:#F6EBD5"></div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px">
+          <div style="display:flex;gap:6px"><div style="width:14px;height:14px;border-radius:50%;background:#F2C386"></div><div style="width:14px;height:14px;border-radius:50%;background:#F2C386"></div><div style="width:14px;height:14px;border-radius:50%;box-shadow:inset 0 0 0 2px #C9B9A4"></div></div>
+          <div style="height:36px;padding:0 14px 0 8px;border-radius:18px;background:rgba(246,235,213,.12);display:flex;align-items:center;gap:8px"><div style="width:20px;height:20px;border-radius:50%;background:#F6EBD5"></div><span style="font-size:18px;font-weight:600;color:#F6EBD5">×3</span></div>
+          <div style="position:relative;flex:1;height:5px;border-radius:3px;background:rgba(246,235,213,.2)"><div style="width:62%;height:5px;border-radius:3px;background:#F6EBD5"></div></div>
+        </div>
+        <span style="font-size:14px;line-height:1.5;color:#C9B9A4;text-wrap:pretty">Hit targets are at least 44pt. HUD elements sit at 85% opacity during play and go to full opacity when they change.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showNotes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Review&quot;},&quot;showSafeArea&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Review&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return { showNotes: this.props.showNotes ?? true, showSafe: this.props.showSafeArea ?? false };
+  }
+}
+</script>
+</body>
+</html>
