@@ -1,18 +1,19 @@
 import Phaser from 'phaser';
 import { HINT_RETURN, PLAYFIELD, PUFF_RADIUS, PUFF_SCREEN_X, SCREEN, SIM_STEP } from '../config/constants';
-import { CREAM, DEEP, FAR, INK, MID, MUTED, PALE } from '../config/palette';
+import { CREAM, INK, MID, MUTED, PALE } from '../config/palette';
 import { audio } from '../audio/audio';
 import { LEVELS, levelById } from '../game/levels/index';
 import { recordClear } from '../game/progress';
 import {
+  arrivalTime,
   briarTriangles,
   createSim,
+  crusherBottom,
   curtainBottom,
+  destroySim,
   gateBottom,
-  humpCircle,
   retryFromCheckpoint,
   seedPosition,
-  seesawEnds,
   setHeld,
   step,
   type Cause,
@@ -21,8 +22,9 @@ import {
   type SimEvent,
 } from '../game/sim';
 import { circleTriangle } from '../game/geometry';
-import type { LevelDef, RectDef } from '../game/types';
-import { drawBloom, drawBubble, drawBurrow, drawPuff, drawSeed, drawSky, drawSpikes, drawSun, drawWheel, glow, type PuffState } from '../render/art';
+import type { LevelDef } from '../game/types';
+import { drawCrusher, drawPuff, drawSky, drawSpikes, drawWheel, type PuffState } from '../render/art';
+import { DEPTH, LevelView } from '../render/levelView';
 import { settingsRow } from '../render/panels';
 import { button, go, iconButton, label, seedDots } from '../render/ui';
 import { services } from '../services';
@@ -30,6 +32,10 @@ import { services } from '../services';
 export interface PlayData {
   levelId: string;
   held?: boolean; // the title's hold carries straight into play
+  // A test flight from the level editor: the edited level, from (x, y) at t seconds into a run, so
+  // crushers and thornwheels are where a run from the start would find them. Nothing is recorded,
+  // and Esc (or Editor) goes back to the editor where it left off.
+  test?: { def: LevelDef; x: number; y: number; t: number };
 }
 
 export interface ClearData {
@@ -52,7 +58,7 @@ interface Particle {
 }
 
 const { roofY: ROOF, floorY: FLOOR } = PLAYFIELD;
-const LEADER_SCALE = PUFF_RADIUS / 30; // Puff is 30pt across
+const LEADER_SCALE = PUFF_RADIUS / 30; // Puff is 30pt across; the art is drawn at 60pt
 const CLONE_SCALE = LEADER_SCALE * (2 / 3);
 const HUD_ALPHA = 0.85; // full opacity only while something changes
 const BAR_X = 322;
@@ -65,20 +71,16 @@ export class PlayScene extends Phaser.Scene {
   private sim!: Sim;
   private acc = 0;
   private camX = 0;
-  private lingerUntil = 0;
-  private lingered = false;
   private paused = false;
   private ending = false;
-  private far!: Phaser.GameObjects.Graphics;
-  private world!: Phaser.GameObjects.Graphics;
+  private view!: LevelView;
+  private test: PlayData['test'] | null = null;
   private puffs!: Phaser.GameObjects.Graphics;
   private fx!: Phaser.GameObjects.Graphics;
-  private fore!: Phaser.GameObjects.Graphics;
   private hud!: Phaser.GameObjects.Graphics;
   private hudLayer!: Phaser.GameObjects.Container;
   private cloneText!: Phaser.GameObjects.Text;
   private hintText!: Phaser.GameObjects.Text;
-  private labels: { text: Phaser.GameObjects.Text; x: number }[] = [];
   private pauseUI: Phaser.GameObjects.Container | null = null;
   private failUI: Phaser.GameObjects.Container | null = null;
   private brighten!: Phaser.GameObjects.Rectangle;
@@ -97,18 +99,17 @@ export class PlayScene extends Phaser.Scene {
   }
 
   create(data: PlayData): void {
-    this.def = levelById(data.levelId) ?? LEVELS[0]!;
-    this.sim = createSim(this.def);
+    this.test = data.test ?? null;
+    const midway = this.test !== null && this.test.t > 0.05 && this.test.x > this.test.def.startX;
+    this.def = this.test ? (midway ? testFlight(this.test.def, this.test.x, this.test.y) : this.test.def) : (levelById(data.levelId) ?? LEVELS[0]!);
+    this.sim = createSim(this.def, midway ? this.test!.t : 0);
     // Only carry the title's hold over if the finger is still down after the fade.
     if (data.held && this.input.activePointer.isDown) setHeld(this.sim, true);
     this.acc = 0;
-    this.camX = this.def.startX - PUFF_SCREEN_X;
-    this.lingerUntil = 0;
-    this.lingered = false;
+    this.camX = this.sim.s.camX;
     this.paused = false;
     this.ending = false;
     this.particles = [];
-    this.labels = [];
     this.pauseUI = null;
     this.failUI = null;
     this.hintAlpha = this.def.hint ? 1 : 0;
@@ -116,26 +117,23 @@ export class PlayScene extends Phaser.Scene {
     this.reformAt = -1;
     this.cameras.main.fadeIn(220, 27, 15, 16);
 
-    // L0 sky and sun never move.
-    const sky = this.add.graphics();
-    drawSky(sky, this.def.sky, SCREEN.width, SCREEN.height);
-    drawSun(sky, this.def.sunX, this.def.sunY, 62);
-
-    this.far = this.add.graphics();
-    this.world = this.add.graphics();
-    for (const l of this.def.labels ?? []) {
-      this.labels.push({ text: label(this, 0, l.y, l.text, { size: 18, weight: 500 }).setOrigin(0, 0.5), x: l.x });
-    }
-    this.puffs = this.add.graphics();
-    this.fx = this.add.graphics();
-    this.fore = this.add.graphics();
-    this.brighten = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, 0xfff3dc, 0).setOrigin(0);
+    this.view = new LevelView(this, this.def);
+    this.puffs = this.add.graphics().setDepth(DEPTH.puffs);
+    this.fx = this.add.graphics().setDepth(DEPTH.fx);
+    this.brighten = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, 0xfff3dc, 0).setOrigin(0).setDepth(DEPTH.overlay);
 
     this.hud = this.add.graphics();
-    this.hintText = label(this, 642, 192 + 42 + 12, 'Hold', { size: 20, weight: 500, color: INK, spacing: 0.04 }).setOrigin(0.5, 0);
+    this.hintText = label(this, 642, 192 + 42 + 12, 'Hold', { size: 20, weight: 500, color: INK, spacing: 0.04 }).setOrigin(0.5, 0).setDepth(DEPTH.hud);
     this.cloneText = label(this, 0, HUD_Y, '×1', { size: 18, weight: 600 }).setOrigin(0, 0.5);
     const pauseBtn = iconButton(this, 60 + 22, HUD_Y, 'pause', { fill: INK, fillAlpha: 0.35, onTap: () => this.pause() });
-    this.hudLayer = this.add.container(0, 0, [this.hud, this.cloneText, pauseBtn]);
+    this.hudLayer = this.add.container(0, 0, [this.hud, this.cloneText, pauseBtn]).setDepth(DEPTH.hud);
+    // Dev builds: E opens this level in the level editor, right where you are.
+    if (import.meta.env.DEV) this.input.keyboard?.on('keydown-E', () => this.openEditor());
+    if (this.test) {
+      const back = () => this.backToEditor();
+      this.input.keyboard?.on('keydown-ESC', back);
+      label(this, SCREEN.width - 56, SCREEN.height - 30, 'TEST FLIGHT · ESC FOR EDITOR', { size: 11, mono: true, spacing: 0.14, color: CREAM }).setOrigin(1, 0.5).setDepth(DEPTH.hud).setAlpha(0.7);
+    }
 
     this.input.on('pointerdown', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       audio.unlock();
@@ -150,9 +148,11 @@ export class PlayScene extends Phaser.Scene {
     audio.startLevel();
     audio.setVoices(1);
     document.addEventListener('visibilitychange', this.onVisibility);
+    const sim = this.sim;
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       audio.stopLevel();
       document.removeEventListener('visibilitychange', this.onVisibility);
+      destroySim(sim); // free the Box2D world
     });
   }
 
@@ -166,7 +166,7 @@ export class PlayScene extends Phaser.Scene {
         this.acc -= SIM_STEP;
       }
     }
-    this.followCamera(dt);
+    this.camX = this.sim.s.camX; // the scroll belongs to the sim: it decides who it leaves behind
     this.tickParticles(dt);
     this.draw();
   }
@@ -213,11 +213,6 @@ export class PlayScene extends Phaser.Scene {
           break;
         case 'checkpoint':
           audio.chime();
-          // 1-1: the camera lingers 0.5s on the first bloom so the player notices it.
-          if (this.def.lingerAtBloom && !this.lingered) {
-            this.lingered = true;
-            this.lingerUntil = this.now + 0.5;
-          }
           break;
         case 'lost':
           audio.fluff();
@@ -228,9 +223,30 @@ export class PlayScene extends Phaser.Scene {
           break;
         case 'respawn':
           this.reformAt = this.now;
-          this.camX = this.leader()!.x - PUFF_SCREEN_X;
+          this.camX = this.sim.s.camX;
           audio.setVoices(this.sim.s.puffs.length);
           break;
+        case 'resize': {
+          audio.pop();
+          services.buzz('light');
+          const o = this.def.orbs.find((x) => x.id === e.id)!;
+          this.particles.push({ kind: 'ring', x: o.x, y: o.y, vx: 0, vy: 0, life: 0.35, max: 0.35, size: 20 });
+          break;
+        }
+        case 'unsize':
+          audio.tap();
+          break;
+        case 'dust':
+          break;
+        case 'slam': {
+          audio.knock();
+          services.buzz('medium');
+          const i = this.def.crushers.findIndex((c) => c.id === e.id);
+          const c = this.def.crushers[i]!;
+          this.burst('dust', c.x - c.width / 2, FLOOR - 4, 4);
+          this.burst('dust', c.x + c.width / 2, FLOOR - 4, 4);
+          break;
+        }
         case 'jam':
           audio.jam();
           break;
@@ -246,16 +262,6 @@ export class PlayScene extends Phaser.Scene {
     }
   }
 
-  private leader(): Puff | undefined {
-    return this.sim.s.puffs[0];
-  }
-
-  private followCamera(dt: number): void {
-    const lead = this.leader();
-    if (!lead || this.now < this.lingerUntil) return;
-    const target = lead.x - PUFF_SCREEN_X;
-    this.camX += (target - this.camX) * Math.min(1, dt * 10);
-  }
 
   // ---------- Win, fail, pause ----------
 
@@ -272,6 +278,10 @@ export class PlayScene extends Phaser.Scene {
     this.tweens.add({ targets: this.brighten, alpha: 0.4, duration: 1200 });
 
     const s = this.sim.s;
+    if (this.test) {
+      this.time.delayedCall(1400, () => this.backToEditor());
+      return;
+    }
     services.setSave(recordClear(services.save, this.def, { seeds: s.seeds, home, time: s.t }));
     const knocks = this.def.seesaws.filter((sw, i) => (sw.mode ?? 'free') === 'free' && s.seesaws[i]!.flips > 0).length;
     const result: ClearData = { levelId: this.def.id, seeds: [...s.seeds], home, time: s.t, knocks };
@@ -287,8 +297,10 @@ export class PlayScene extends Phaser.Scene {
     const title = label(this, SCREEN.width / 2, 138, 'Paused', { size: 44, weight: 600 }).setOrigin(0.5);
     const left = SCREEN.width / 2 - (180 + 150 + 150 + 28) / 2;
     const resume = button(this, left, 192, 'Resume', { kind: 'primary', w: 180, onTap: () => this.resume() });
-    const restart = button(this, left + 194, 192, 'Restart', { kind: 'secondary', w: 150, onTap: () => this.scene.restart({ levelId: this.def.id }) });
-    const map = button(this, left + 358, 192, 'Map', { kind: 'secondary', w: 150, onTap: () => go(this, 'map', { world: this.def.world }) });
+    const restart = button(this, left + 194, 192, 'Restart', { kind: 'secondary', w: 150, onTap: () => this.restart() });
+    const map = this.test
+      ? button(this, left + 358, 192, 'Editor', { kind: 'secondary', w: 150, onTap: () => this.backToEditor() })
+      : button(this, left + 358, 192, 'Map', { kind: 'secondary', w: 150, onTap: () => go(this, 'map', { world: this.def.world }) });
     const toggles = settingsRow(this, SCREEN.width / 2, 284);
     this.pauseUI = this.add.container(0, 0, [dim, kicker, title, resume, restart, map, toggles]).setDepth(150);
   }
@@ -309,6 +321,10 @@ export class PlayScene extends Phaser.Scene {
     g.fillStyle(INK, 1).fillRect(0, SCREEN.height - 40, SCREEN.width, 40).fillEllipse(700, 440, 360, 280).fillEllipse(90, -30, 260, 220);
     if (cause === 'thornwheel') {
       drawWheel(g, 640, 170, 60, this.now);
+    } else if (cause === 'crusher') {
+      drawCrusher(g, 650, 150, SCREEN.height - 40, 0, false, this.now);
+    } else if (cause === 'behind') {
+      g.fillStyle(INK, 1).fillRect(SCREEN.width - 230, 0, 230, SCREEN.height);
     } else {
       drawSpikes(g, briarTriangles({ x0: 560, base: SCREEN.height - 40, side: 'up', spikes: [70, 96, 60, 84, 66], width: 28 }), 0);
     }
@@ -323,13 +339,14 @@ export class PlayScene extends Phaser.Scene {
     const words: Record<Cause, [string, string]> = {
       thornwheel: ['Shredded.', 'The thornwheel got your last clone.'],
       briar: ['Pricked.', 'The briar got your last clone.'],
-      stranded: ['Left behind.', 'Your last clone drifted off.'],
+      crusher: ['Squashed.', 'The rootcrusher got your last clone.'],
+      behind: ['Left behind.', 'The dark caught your last clone.'],
     };
     const [title, line] = words[cause];
     const t1 = label(this, 64, 96, title, { size: 48, weight: 600 });
     const t2 = label(this, 64, 96 + 56, line, { size: 19, weight: 400, color: 0xe8cfc0 });
     const retry = button(this, 64, 232, 'Retry from checkpoint', { kind: 'primary', h: 56, size: 20, onTap: () => this.retry() });
-    const restart = button(this, 64 + retry.w + 12, 232, 'Restart', { kind: 'secondary', h: 56, onTap: () => this.scene.restart({ levelId: this.def.id }) });
+    const restart = button(this, 64 + retry.span + 12, 232, 'Restart', { kind: 'secondary', h: 56, onTap: () => this.restart() });
     const block = this.add.rectangle(0, 0, SCREEN.width, SCREEN.height, 0, 0).setOrigin(0).setInteractive();
     this.failUI = this.add.container(0, 0, [block, g, t1, t2, retry, restart]).setDepth(200);
   }
@@ -339,6 +356,20 @@ export class PlayScene extends Phaser.Scene {
     this.failUI?.destroy();
     this.failUI = null;
     setHeld(this.sim, false);
+  }
+
+  private restart(): void {
+    this.scene.restart({ levelId: this.def.id, test: this.test ?? undefined });
+  }
+
+  private backToEditor(): void {
+    if (!this.test) return;
+    go(this, 'editor', { levelId: this.test.def.id, t: this.test.t });
+  }
+
+  private openEditor(): void {
+    if (this.ending) return;
+    go(this, 'editor', { levelId: this.def.id, t: arrivalTime(this.def, this.camX + PUFF_SCREEN_X) });
   }
 
   // ---------- Particles ----------
@@ -367,140 +398,10 @@ export class PlayScene extends Phaser.Scene {
   private draw(): void {
     const cam = this.camX;
     const t = this.now;
-    this.drawBackground(cam, t);
-    this.drawWorld(cam, t);
+    this.view.draw(this.sim, cam, t, { edgeShade: this.sim.s.phase !== 'waiting' || this.sim.s.t > 0 });
     this.drawPuffs(cam, t);
     this.drawFx(cam);
-    this.drawForeground(cam);
     this.drawHud(t);
-  }
-
-  private drawBackground(cam: number, t: number): void {
-    const g = this.far.clear();
-    // L1 far hills at 0.2x and L2 mid hills at 0.5x parallax.
-    const layer = (factor: number, spacing: number, hills: [number, number, number][], color: number) => {
-      const shift = cam * factor;
-      const first = Math.floor((shift - 400) / spacing);
-      g.fillStyle(color, 1);
-      for (let k = first; k < first + Math.ceil((SCREEN.width + 800) / spacing) + 1; k++) {
-        const [dx, top, r] = hills[((k % hills.length) + hills.length) % hills.length]!;
-        g.fillCircle(k * spacing + dx - shift, top + r, r);
-      }
-    };
-    layer(0.2, 540, [[0, 240, 240], [180, 262, 260], [360, 232, 250]], FAR);
-    layer(0.5, 680, [[0, 300, 160], [340, 290, 190]], MID);
-    // Ambient moths, drawn dull in the mid-layer colour. Only things that help you glow.
-    const shift = cam * 0.5;
-    g.fillStyle(MID, 1);
-    for (let k = Math.floor((shift - 100) / 430); k < Math.floor((shift + SCREEN.width + 100) / 430) + 1; k++) {
-      const x = k * 430 + 120 - shift + Math.sin(t * 1.3 + k) * 14;
-      const y = 120 + (((k * 53) % 120) + 120) % 120 + Math.sin(t * 3.1 + k * 2) * 8;
-      g.fillEllipse(x - 3, y, 5, 3 + Math.abs(Math.sin(t * 18 + k)) * 3).fillEllipse(x + 3, y, 5, 3 + Math.abs(Math.sin(t * 18 + k)) * 3);
-    }
-  }
-
-  private drawWorld(cam: number, t: number): void {
-    const g = this.world.clear();
-    const def = this.def;
-    const s = this.sim.s;
-    const lo = cam - 220;
-    const hi = cam + SCREEN.width + 220;
-    const on = (x0: number, x1: number) => x1 > lo && x0 < hi;
-
-    // Burrow glow shows from three screens away.
-    const bx = def.burrowX - cam;
-    if (def.burrowX - cam < SCREEN.width * 3 + PUFF_SCREEN_X) glow(this.world, bx, FLOOR - 40, 70, 0xffecbe, 1);
-
-    g.fillStyle(INK, 1);
-    for (const h of def.humps) {
-      if (!on(h.cx - h.width / 2, h.cx + h.width / 2)) continue;
-      const c = humpCircle(h.width, h.height);
-      g.fillCircle(h.cx - cam, c.cy, c.r);
-    }
-    for (const r of def.rects) if (on(r.x0, r.x1)) this.drawRect(g, r, cam);
-
-    for (const root of def.roots ?? []) {
-      if (!on(root.x - 10, root.x + 10)) continue;
-      const wob = Math.sin(t * 2.5 + root.x) * 2; // roots twitch but don't hurt
-      g.lineStyle(3, INK, 1).lineBetween(root.x - cam, root.y0, root.x - cam + wob, root.y0 + root.len);
-    }
-    if (def.rootTrail && on(def.rootTrail.x0, def.rootTrail.x1)) {
-      const { x0, x1 } = def.rootTrail;
-      g.lineStyle(3, INK, 1).lineBetween(x0 - cam, ROOF, x0 - cam + Math.sin(t * 2) * 1.5, 250);
-      g.fillStyle(INK, 1).fillRect(x0 - cam, ROOF, x1 - x0, 5);
-      for (let x = x0 + 30; x < x1; x += 45) g.lineStyle(2, INK, 1).lineBetween(x - cam, ROOF + 4, x - cam + 3, ROOF + 14);
-    }
-
-    def.seesaws.forEach((sw, i) => {
-      if (!on(sw.px - sw.half, sw.px + sw.half)) return;
-      const e = seesawEnds(sw, s.seesaws[i]!.angle);
-      const base = sw.baseY ?? FLOOR;
-      g.fillStyle(INK, 1).fillTriangle(sw.px - 18 - cam, base, sw.px + 18 - cam, base, sw.px - cam, sw.py);
-      g.lineStyle(10, INK, 1).lineBetween(e.ax - cam, e.ay, e.bx - cam, e.by);
-      g.fillCircle(e.ax - cam, e.ay, 5).fillCircle(e.bx - cam, e.by, 5);
-    });
-    def.gates.forEach((gate, i) => {
-      if (!on(gate.x, gate.x + 14)) return;
-      g.fillStyle(INK, 1).fillRoundedRect(gate.x - cam, ROOF, 14, gateBottom(this.sim, i) - ROOF, { tl: 0, tr: 0, bl: 7, br: 7 });
-    });
-    def.curtains.forEach((c, i) => {
-      if (!on(c.x0, c.x1)) return;
-      const bottom = curtainBottom(this.sim, i);
-      g.fillStyle(INK, 1).fillRect(c.x0 - cam, ROOF, c.x1 - c.x0, bottom - 12 - ROOF);
-      for (let x = c.x0 - 6; x < c.x1 + 6; x += 12) g.fillTriangle(x - cam, bottom - 14, x + 12 - cam, bottom - 14, x + 6 - cam, bottom);
-    });
-    for (const b of def.briars) {
-      const w = (b.width ?? 20) * b.spikes.length;
-      if (on(b.x0, b.x0 + w)) drawSpikes(g, briarTriangles(b), cam);
-    }
-    def.wheels.forEach((w, i) => {
-      if (!on(w.cx - w.r, w.cx + w.r)) return;
-      g.fillStyle(INK, 1);
-      if (w.post) g.fillRect(w.cx - 2 - cam, w.cy, 4, FLOOR - w.cy);
-      if (w.hang !== undefined) g.fillRect(w.cx - 2 - cam, w.hang, 4, w.cy - w.hang);
-      drawWheel(g, w.cx - cam, w.cy, w.r, s.wheels[i]!.angle, w.missingTooth);
-    });
-    def.pebbles.forEach((p, i) => {
-      const st = s.pebbles[i]!;
-      if (!st.gone && on(st.x - p.r, st.x + p.r)) g.fillStyle(INK, 1).fillCircle(st.x - cam, st.y, p.r);
-    });
-    def.blooms.forEach((b, i) => {
-      if (on(b.x - 30, b.x + 30)) drawBloom(g, b.x - cam, FLOOR, s.blooms[i]!, t);
-    });
-    def.bubbles.forEach((b, i) => {
-      if (s.bubbles[i]!.poppedAt === null && on(b.x - 30, b.x + 30)) drawBubble(g, b.x - cam, b.y + Math.sin(t * 2 + i) * 3);
-    });
-    def.seeds.forEach((_, i) => {
-      if (s.seeds[i]) return;
-      const p = seedPosition(this.sim, i);
-      if (on(p.x - 20, p.x + 20)) drawSeed(g, p.x - cam, p.y);
-    });
-    if (on(def.burrowX - 80, def.burrowX + 80)) drawBurrow(g, bx, FLOOR);
-
-    // 1-1: Puff starts asleep on a dandelion head.
-    if (def.perch && on(def.startX - 20, def.startX + 20)) {
-      const headY = def.startY + PUFF_RADIUS + 9;
-      g.fillStyle(INK, 1).fillRect(def.startX - 2 - cam, headY, 4, FLOOR - headY).fillCircle(def.startX - cam, headY, 10);
-    }
-
-    // The play layer's roof and ground.
-    g.fillStyle(INK, 1).fillRect(0, 0, SCREEN.width, ROOF).fillRect(0, FLOOR, SCREEN.width, SCREEN.height - FLOOR);
-    for (const l of this.labels) l.text.setX(l.x - cam);
-  }
-
-  private drawRect(g: Phaser.GameObjects.Graphics, r: RectDef, cam: number): void {
-    const x = r.x0 - cam;
-    const w = r.x1 - r.x0;
-    const h = r.y1 - r.y0;
-    g.fillStyle(INK, 1);
-    if (r.look === 'vine') {
-      g.fillRect(x + w / 2 - 2, r.y0, 4, h - 6);
-      g.fillEllipse(x + w / 2, r.y1 - 6, 18, 12);
-      return;
-    }
-    const round = r.round ?? {};
-    const clampR = (v = 0) => Math.min(v, w / 2, h);
-    g.fillRoundedRect(x, r.y0, w, h, { tl: clampR(round.tl), tr: clampR(round.tr), bl: clampR(round.bl), br: clampR(round.br) });
   }
 
   private drawPuffs(cam: number, t: number): void {
@@ -519,8 +420,10 @@ export class PlayScene extends Phaser.Scene {
       if (s.phase === 'waiting' && this.def.perch) state = 'sleep';
       else if (p.bonk > 0) state = 'bonk';
       else if (isLead ? s.held : p.vy < -30) state = 'puff';
+      // A Swell or Shrink about to wear off wobbles.
+      const ending = p.size !== 1 && p.sizeUntil - s.t < 1 ? 1 + Math.sin(t * 30) * 0.05 : 1;
       drawPuff(g, p.x - cam, p.y, {
-        scale: (isLead ? LEADER_SCALE : CLONE_SCALE) * grow,
+        scale: (p.r / 30) * grow * ending,
         state,
         sprout: isLead,
         blush: isLead,
@@ -539,6 +442,7 @@ export class PlayScene extends Phaser.Scene {
     if (def.gates.some((g, i) => x >= g.x && x <= g.x + 14 && y <= gateBottom(this.sim, i))) return true;
     if (def.curtains.some((c, i) => x >= c.x0 && x <= c.x1 && y <= curtainBottom(this.sim, i))) return true;
     if (def.wheels.some((w) => Math.hypot(x - w.cx, y - w.cy) < w.r)) return true;
+    if (def.crushers.some((c, i) => Math.abs(x - c.x) < c.width / 2 && y <= crusherBottom(this.sim, i))) return true;
     return def.briars.some((b) => {
       if (b.side !== 'down' || x < b.x0 || x > b.x0 + (b.width ?? 20) * b.spikes.length) return false;
       return briarTriangles(b).some((t) => circleTriangle(x, y, 0.01, t.ax, t.ay, t.bx, t.by, t.qx, t.qy));
@@ -563,6 +467,7 @@ export class PlayScene extends Phaser.Scene {
       consider(Math.max(b.x0, Math.min(lead.x + 40, b.x0 + w)), b.side === 'up' ? b.base - tall / 2 : b.base + tall / 2);
     }
     for (const w of def.wheels) consider(w.cx, w.cy);
+    def.crushers.forEach((c, i) => consider(c.x, crusherBottom(this.sim, i)));
     def.curtains.forEach((c, i) => consider(c.x0, (ROOF + curtainBottom(this.sim, i)) / 2));
     if (!best) return { x: 1, y: 0.15 };
     const target = best as { x: number; y: number };
@@ -588,17 +493,6 @@ export class PlayScene extends Phaser.Scene {
       else if (p.kind === 'dust') g.fillStyle(MID, k).fillCircle(x, p.y, p.size);
       else if (p.kind === 'ring') g.lineStyle(2, PALE, k).strokeCircle(x, p.y, p.size * (1.6 - k * 0.6));
       else drawPuff(g, x, p.y, { scale: p.size, state: 'lost', sprout: true, alpha: k });
-    }
-  }
-
-  // L4 foreground at 1.4x. It never covers the flight path or anything you can pick up.
-  private drawForeground(cam: number): void {
-    const g = this.fore.clear();
-    const shift = cam * 1.4;
-    g.fillStyle(DEEP, 1);
-    for (let k = Math.floor((shift - 200) / 900); k < Math.floor((shift + SCREEN.width + 200) / 900) + 1; k++) {
-      g.fillCircle(k * 900 + 100 - shift, SCREEN.height + 30, 70);
-      g.fillCircle(k * 900 + 560 - shift, -46, 60);
     }
   }
 
@@ -649,9 +543,12 @@ export class PlayScene extends Phaser.Scene {
     seedDots(g, right - 54, HUD_Y, s.seeds, pale ? { ring: 0, ink: CREAM, emptyAlpha: 0.7 } : {});
 
     // 1-1 hint: a single word under the right thumb. It fades on release and only returns
-    // if the player hasn't held for 4 seconds.
-    if (def.hint) {
-      const idle = s.phase === 'waiting' || (s.phase === 'running' && t >= 0 && s.t - s.lastReleaseAt >= HINT_RETURN);
+    // if the player hasn't held for 4 seconds. Every level shows it while a re-formed Puff waits
+    // for the hold that starts the scroll again.
+    const reforming = s.phase === 'waiting' && s.t > 0;
+    if (def.hint || reforming) {
+      this.hintText.setVisible(true);
+      const idle = s.phase === 'waiting' || (def.hint && s.phase === 'running' && s.t - s.lastReleaseAt >= HINT_RETURN);
       const want = !s.held && idle ? 1 : 0;
       this.hintAlpha += (want - this.hintAlpha) * 0.15;
       const a = this.hintAlpha;
@@ -664,4 +561,12 @@ export class PlayScene extends Phaser.Scene {
       this.hintText.setVisible(false);
     }
   }
+}
+
+// The level as a test flight from (x, y): Puff starts mid-air there, and blooms already behind it
+// are left out so the first checkpoint is ahead.
+function testFlight(def: LevelDef, x: number, y: number): LevelDef {
+  const blooms = def.blooms.filter((b) => b.x > x);
+  const linger = !!def.lingerAtBloom && def.blooms[0] !== undefined && def.blooms[0].x > x; // only if it's still ahead
+  return { ...def, startX: x, startY: y, perch: false, hint: false, lingerAtBloom: linger, blooms };
 }

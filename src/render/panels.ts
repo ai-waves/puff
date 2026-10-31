@@ -13,22 +13,23 @@ export function settingsRow(scene: Phaser.Scene, cx: number, y: number): Phaser.
     toggle(scene, 0, 0, 'Haptics', s.haptics, (v) => services.setSetting('haptics', v)),
   ];
   const gap = 28;
-  const total = items.reduce((w, c) => w + c.w, 0) + gap * (items.length - 1);
+  const total = items.reduce((w, c) => w + c.span, 0) + gap * (items.length - 1);
   let x = cx - total / 2;
   for (const c of items) {
     c.setPosition(x, y);
-    x += c.w + gap;
+    x += c.span + gap;
   }
   return scene.add.container(0, 0, items);
 }
 
-// Settings from the title: the same three toggles over the dimmed world. No separate settings screen.
+// Settings from the title: the same three toggles, laid out like the Pause frame. The title art
+// is busy where the panel sits, so the dim is deeper than Pause's.
 export function settingsOverlay(scene: Phaser.Scene, onClose: () => void): Phaser.GameObjects.Container {
-  const dim = scene.add.rectangle(0, 0, SCREEN.width, SCREEN.height, 0x140b0c, 0.72).setOrigin(0).setInteractive();
-  const title = label(scene, SCREEN.width / 2, 120, 'Settings', { size: 44, weight: 600, color: CREAM }).setOrigin(0.5);
-  const kicker = label(scene, SCREEN.width / 2, 82, 'HOLLOWDRIFT', { size: 12, mono: true, spacing: 0.2, color: MUTED }).setOrigin(0.5);
-  const row = settingsRow(scene, SCREEN.width / 2, 196);
-  const done = button(scene, SCREEN.width / 2 - 90, 246, 'Done', { kind: 'primary', w: 180, onTap: onClose });
+  const dim = scene.add.rectangle(0, 0, SCREEN.width, SCREEN.height, 0x140b0c, 0.9).setOrigin(0).setInteractive();
+  const kicker = label(scene, SCREEN.width / 2, 93, 'HOLLOWDRIFT', { size: 12, mono: true, spacing: 0.2, color: MUTED }).setOrigin(0.5, 0);
+  const title = label(scene, SCREEN.width / 2, 138, 'Settings', { size: 44, weight: 600, color: CREAM }).setOrigin(0.5);
+  const row = settingsRow(scene, SCREEN.width / 2, 210);
+  const done = button(scene, SCREEN.width / 2 - 90, 252, 'Done', { kind: 'primary', w: 180, onTap: onClose });
   return scene.add.container(0, 0, [dim, kicker, title, row, done]).setDepth(100);
 }
 

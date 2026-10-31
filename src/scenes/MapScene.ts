@@ -105,7 +105,7 @@ export class MapScene extends Phaser.Scene {
     const items: Phaser.GameObjects.GameObject[] = [bg];
 
     let title = `1-${i + 1}`;
-    let body = 'Coming soon. Chapter 2, Undergrowth, is still being designed.';
+    let body = 'Coming soon.';
     let playable = false;
     if (level) {
       title = `${level.id} ${level.name}`;
@@ -120,8 +120,14 @@ export class MapScene extends Phaser.Scene {
     items.push(label(this, x + 20, y + 38, body, { size: 13, weight: 400, color: MUTED }).setWordWrapWidth(textW));
     if (playable && level) {
       const play = button(this, 0, y + 10, 'Play', { kind: 'primary', h: 48, size: 18, onTap: () => go(this, 'play', { levelId: level.id }) });
-      play.setX(x + w - 10 - play.w / 2);
+      play.setX(x + w - 10 - play.span / 2);
       items.push(play);
+    }
+    // Dev builds: open any level, locked or not, in the level editor.
+    if (import.meta.env.DEV && level) {
+      const edit = button(this, 0, 26, `Edit ${level.id}`, { kind: 'secondary', h: 36, size: 14, onTap: () => go(this, 'editor', { levelId: level.id }) });
+      edit.setX(SCREEN.width - 56 - edit.span / 2);
+      items.push(edit);
     }
     this.card = this.add.container(0, 0, items);
   }

@@ -1,0 +1,83 @@
+{
+  "id": "1-8",
+  "n": 8,
+  "world": 1,
+  "name": "Rootfall",
+  "blurb": "Rootcrushers slam on a beat. Reach the burrow.",
+  "teach": "Teach: some things move on a beat.",
+  "notes": "1-8 · Rootfall. Teach: some things move on a beat. About 85 seconds. The Rootcrusher card: \"Slams on a beat. Watch the dust fall before it drops.\" Each crusher is a column of roots: up, Puff flies under it; down, it's a wall that only bumps. Each beat is set so that a Puff keeping its place on screen meets the crusher just after it lifts.",
+  "length": 10600,
+  "startX": 300,
+  "startY": 190,
+  "burrowX": 10250,
+  "sky": [[0, "#c27868"], [1, "#a5554e"]],
+  "sunX": 670,
+  "sunY": 195,
+  "deaths": "instant",
+  "goalClones": 1,
+  "rects": [],
+  "humps": [
+    { "id": "mound-1", "cx": 800, "width": 600, "height": 60 },
+    { "id": "mound-2", "cx": 8600, "width": 900, "height": 90, "note": "beat 08: soft ground on the way home" }
+  ],
+  "briars": [],
+  "seesaws": [],
+  "gates": [],
+  "curtains": [],
+  "wheels": [
+    {
+      "id": "between",
+      "cx": 6800,
+      "cy": 285,
+      "r": 45,
+      "spin": 96,
+      "post": true,
+      "note": "Beat 06: a thornwheel on a post between two crushers: dive, rise, dive."
+    }
+  ],
+  "pebbles": [],
+  "seeds": [
+    { "id": "under", "x": 2600, "y": 332, "note": "beat 02: on the floor right under a crusher" },
+    {
+      "id": "row",
+      "x": 4560,
+      "y": 330,
+      "note": "Beat 04: tucked against the middle crusher of the row, low, on its far side."
+    },
+    {
+      "id": "crown",
+      "x": 6800,
+      "y": 214,
+      "route": [[6400, 260], [6560, 300], [6700, 222], [6900, 222], [7000, 300], [7250, 260]],
+      "note": "Beat 06: just over the thornwheel's teeth."
+    }
+  ],
+  "bubbles": [],
+  "orbs": [],
+  "crushers": [
+    {
+      "id": "first",
+      "x": 1500,
+      "width": 80,
+      "rest": 170,
+      "period": 4,
+      "offset": -7.601,
+      "note": "beat 01: a slow, wide-open first one"
+    },
+    { "id": "seed", "x": 2600, "width": 100, "rest": 190, "period": 3.2, "offset": -16.223, "note": "beat 02" },
+    {
+      "id": "row-1",
+      "x": 4200,
+      "width": 80,
+      "rest": 180,
+      "period": 3.2,
+      "offset": -28.737,
+      "note": "beat 04: a row, each a beat behind the last"
+    },
+    { "id": "row-2", "x": 4500, "width": 80, "rest": 180, "period": 3.2, "offset": -31.068 },
+    { "id": "row-3", "x": 4800, "width": 80, "rest": 180, "period": 3.2, "offset": -33.4 },
+    { "id": "weave-1", "x": 6500, "width": 80, "rest": 200, "period": 3.2, "offset": -46.614, "note": "beat 06" },
+    { "id": "weave-2", "x": 7100, "width": 80, "rest": 200, "period": 3.2, "offset": -51.277 }
+  ],
+  "blooms": [{ "id": "bloom-1", "x": 3300, "note": "beat 03" }, { "id": "bloom-2", "x": 5600, "note": "beat 05" }]
+}

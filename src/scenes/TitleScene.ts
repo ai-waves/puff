@@ -12,6 +12,7 @@ import { services } from '../services';
 // Puff floats near the sun and bobs slowly. The first hold starts the last unfinished level.
 export class TitleScene extends Phaser.Scene {
   private puff!: Phaser.GameObjects.Graphics;
+  private words: Phaser.GameObjects.Text[] = [];
   private overlay: Phaser.GameObjects.Container | null = null;
 
   constructor() {
@@ -32,16 +33,18 @@ export class TitleScene extends Phaser.Scene {
     g.fillCircle(260, -20, 110).fillCircle(40, -10, 100).fillEllipse(770, -78, 300, 170);
     g.fillRoundedRect(250, 60, 3, 90, 1.5).fillRoundedRect(290, 70, 3, 130, 1.5).fillRoundedRect(700, 0, 3, 180, 1.5);
 
-    label(this, SCREEN.width / 2, 118, 'HOLLOWDRIFT', { size: 76, weight: 700, color: INK, spacing: 0.04 }).setOrigin(0.5, 0);
-    label(this, SCREEN.width / 2, 200, "A SEED'S LONG WAY HOME", { size: 13, mono: true, color: INK, spacing: 0.3 }).setOrigin(0.5, 0);
-    label(this, SCREEN.width / 2, SCREEN.height - 66 - 24, 'Hold anywhere to begin', { size: 20, weight: 500, color: CREAM, spacing: 0.06 }).setOrigin(0.5, 0);
+    this.words = [
+      label(this, SCREEN.width / 2, 118, 'HOLLOWDRIFT', { size: 76, weight: 700, color: INK, spacing: 0.04 }).setOrigin(0.5, 0),
+      label(this, SCREEN.width / 2, 200, "A SEED'S LONG WAY HOME", { size: 13, mono: true, color: INK, spacing: 0.3 }).setOrigin(0.5, 0),
+      label(this, SCREEN.width / 2, SCREEN.height - 66 - 24, 'Hold anywhere to begin', { size: 20, weight: 500, color: CREAM, spacing: 0.06 }).setOrigin(0.5, 0),
+    ];
 
     this.puff = this.add.graphics();
 
     const settings = button(this, 0, 28, 'Settings', { kind: 'secondary', h: 44, size: 16, ink: INK, outlineAlpha: 0.7, onTap: () => this.openSettings() });
-    settings.setX(SCREEN.width - 56 - settings.w / 2);
+    settings.setX(SCREEN.width - 56 - settings.span / 2);
     const skins = button(this, 0, 28, 'Skins', { kind: 'secondary', h: 44, size: 16, ink: INK, outlineAlpha: 0.7, onTap: () => toast(this, 'Skins are coming in a later update') });
-    skins.setX(settings.x - settings.w / 2 - 12 - skins.w / 2);
+    skins.setX(settings.x - settings.span / 2 - 12 - skins.span / 2);
 
     this.input.on('pointerdown', (_p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
       audio.unlock();
@@ -51,10 +54,13 @@ export class TitleScene extends Phaser.Scene {
     });
   }
 
+  // The title's words would show through the panel's toggles, so they step aside while it's open.
   private openSettings(): void {
+    for (const w of this.words) w.setVisible(false);
     this.overlay = settingsOverlay(this, () => {
       this.overlay?.destroy();
       this.overlay = null;
+      for (const w of this.words) w.setVisible(true);
     });
   }
 

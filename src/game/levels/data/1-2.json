@@ -1,0 +1,101 @@
+{
+  "id": "1-2",
+  "n": 2,
+  "world": 1,
+  "name": "Mossback",
+  "blurb": "Tip 3 logs to open the way.",
+  "teach": "Teach: touching moves things.",
+  "notes": "1-2 · Mossback. Teach: touching moves things. About 80 seconds. Nothing here is deadly. Map: 1720px = 9,000pt (x scale 5.23); y maps the map's 14-230 band onto 14-350. Every gate sits on the same screen as the log that works it, and creaks right up into the roof when it opens, so an open gate never looks like a wall.",
+  "length": 9000,
+  "startX": 262,
+  "startY": 191,
+  "burrowX": 8712,
+  "sky": [[0, "#f4cd94"], [1, "#e99366"]],
+  "sunX": 640,
+  "sunY": 125,
+  "deaths": "instant",
+  "goalClones": 1,
+  "rootTrail": { "x0": 7540, "x1": 7900, "y": 14 },
+  "rects": [
+    {
+      "id": "mound",
+      "look": "mound",
+      "x0": 3700,
+      "x1": 4300,
+      "y0": 210,
+      "y1": 350,
+      "round": { "tl": 80, "tr": 24 },
+      "note": "Beat 05: the mound the second pebble rests on. Its far edge is sharp, so a pushed pebble drops straight off it onto log 2's high end."
+    }
+  ],
+  "humps": [],
+  "briars": [],
+  "seesaws": [
+    {
+      "id": "log-1",
+      "px": 1779,
+      "py": 300,
+      "half": 110,
+      "high": "right",
+      "note": "Beat 02: landing on the high end tips it, and gate 1 creaks up in full view."
+    },
+    {
+      "id": "log-2",
+      "px": 4390,
+      "py": 279,
+      "half": 80,
+      "high": "left",
+      "note": "Beat 05: the pebble rolls off the mound onto this log's high end, tucked under the edge, and tips it."
+    },
+    {
+      "id": "log-3",
+      "px": 6593,
+      "py": 300,
+      "half": 110,
+      "high": "right",
+      "mode": "dud",
+      "note": "Beat 07: two logs. The left one is the wrong one and just bounces you."
+    },
+    { "id": "log-4", "px": 7430, "py": 300, "half": 110, "high": "right" }
+  ],
+  "gates": [
+    { "id": "gate-1", "x": 2250, "openBottom": 40, "link": "log-1", "mode": "latch" },
+    {
+      "id": "gate-2",
+      "x": 4880,
+      "openBottom": 40,
+      "link": "log-2",
+      "mode": "timed",
+      "closeTime": 3,
+      "closeAhead": 260,
+      "note": "Beat 06: gate 2 drifts shut over 3s, so the player has to commit to a dive."
+    },
+    { "id": "gate-3", "x": 7900, "openBottom": 40, "link": "log-4", "mode": "latch" }
+  ],
+  "curtains": [],
+  "wheels": [],
+  "pebbles": [
+    { "id": "pebble-1", "x": 764, "y": 334, "r": 16, "note": "beat 01: bumping it rolls it ahead" },
+    { "id": "pebble-2", "x": 4200, "y": 194, "r": 16, "note": "beat 05: on the mound" }
+  ],
+  "seeds": [
+    {
+      "id": "raised-end",
+      "x": 1880,
+      "y": 252,
+      "ride": { "log": "log-1", "at": 0.8, "lift": 22 },
+      "note": "beat 03: grabbing it tips the log"
+    },
+    { "id": "behind-gate", "x": 4940, "y": 330, "note": "beat 06: low, behind the closing gate" },
+    {
+      "id": "hollow",
+      "x": 7610,
+      "y": 332,
+      "note": "Beat 08: the skill seed, low just past the right log's raised end. Puff only flies forward, so it's a steep dive past the end rather than a hollow under it."
+    }
+  ],
+  "bubbles": [],
+  "orbs": [],
+  "crushers": [],
+  "blooms": [{ "id": "bloom-1", "x": 3249, "note": "beat 04: gates you've opened stay open" }]
+}

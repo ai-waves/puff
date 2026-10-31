@@ -1,0 +1,184 @@
+{
+  "id": "1-7",
+  "n": 7,
+  "world": 1,
+  "name": "Needle's Eye",
+  "blurb": "Shrink to slip through the brambles.",
+  "teach": "Teach: smaller fits.",
+  "notes": "1-7 · Needle's Eye. Teach: smaller fits. About 85 seconds. The Shrink card: \"0.5x. Slips through bramble gaps.\" The Briar card: \"Shrink to pass between them.\" A bramble gap here is two rows of thorns tip to tip, 22pt apart: a normal Puff can't help touching them, a shrunk one (15pt across) slips through.",
+  "length": 10400,
+  "startX": 300,
+  "startY": 190,
+  "burrowX": 10050,
+  "sky": [[0, "#d4876c"], [1, "#b95f52"]],
+  "sunX": 680,
+  "sunY": 180,
+  "deaths": "instant",
+  "goalClones": 1,
+  "rects": [
+    {
+      "id": "lane-shelf",
+      "look": "shelf",
+      "x0": 2450,
+      "x1": 3000,
+      "y0": 200,
+      "y1": 240,
+      "round": { "tl": 8, "tr": 8, "bl": 8, "br": 8 },
+      "note": "Beat 03: a shelf splits the way. The lower lane holds a bramble eye and a seed."
+    },
+    {
+      "id": "high-shelf",
+      "look": "shelf",
+      "x0": 7500,
+      "x1": 8000,
+      "y0": 150,
+      "y1": 190,
+      "round": { "tl": 8, "tr": 8, "bl": 8, "br": 8 },
+      "note": "Beat 08: the same again, the eye in the upper lane this time."
+    }
+  ],
+  "humps": [{ "id": "mound-1", "cx": 900, "width": 700, "height": 70, "note": "Beat 01: a soft mound to wake up on." }],
+  "briars": [
+    {
+      "id": "lane-eye-top",
+      "x0": 2600,
+      "base": 240,
+      "side": "down",
+      "width": 24,
+      "spikes": [44, 44, 44, 44, 44, 44],
+      "note": "beat 03"
+    },
+    {
+      "id": "lane-eye-bottom",
+      "x0": 2600,
+      "base": 350,
+      "side": "up",
+      "width": 24,
+      "spikes": [44, 44, 44, 44, 44, 44],
+      "note": "beat 03"
+    },
+    {
+      "id": "needle-top",
+      "x0": 3800,
+      "base": 14,
+      "side": "down",
+      "width": 24,
+      "spikes": [166, 166, 166, 166, 166, 166, 166, 166],
+      "note": "beat 05: the whole way is a bramble wall with an eye"
+    },
+    {
+      "id": "needle-bottom",
+      "x0": 3800,
+      "base": 350,
+      "side": "up",
+      "width": 24,
+      "spikes": [148, 148, 148, 148, 148, 148, 148, 148],
+      "note": "beat 05: the whole way is a bramble wall with an eye"
+    },
+    {
+      "id": "slalom-floor-1",
+      "x0": 5900,
+      "base": 350,
+      "side": "up",
+      "width": 24,
+      "spikes": [63, 89.25, 105, 89.25, 63],
+      "note": "Beat 07: the slalom from 1-3, with a Shrink at its mouth that wears off partway through."
+    },
+    {
+      "id": "slalom-roof-1",
+      "x0": 5990,
+      "base": 14,
+      "side": "down",
+      "width": 24,
+      "spikes": [76.2, 107.95, 127, 107.95, 76.2],
+      "note": "Beat 07: the slalom from 1-3, with a Shrink at its mouth that wears off partway through."
+    },
+    {
+      "id": "slalom-floor-2",
+      "x0": 6400,
+      "base": 350,
+      "side": "up",
+      "width": 24,
+      "spikes": [75, 106.25, 125, 106.25, 75],
+      "note": "Beat 07: the slalom from 1-3, with a Shrink at its mouth that wears off partway through."
+    },
+    {
+      "id": "slalom-roof-2",
+      "x0": 6490,
+      "base": 14,
+      "side": "down",
+      "width": 24,
+      "spikes": [64.2, 90.95, 107, 90.95, 64.2],
+      "note": "Beat 07: the slalom from 1-3, with a Shrink at its mouth that wears off partway through."
+    },
+    {
+      "id": "slalom-floor-3",
+      "x0": 6900,
+      "base": 350,
+      "side": "up",
+      "width": 24,
+      "spikes": [57, 80.75, 95, 80.75, 57],
+      "note": "Beat 07: the slalom from 1-3, with a Shrink at its mouth that wears off partway through."
+    },
+    {
+      "id": "slalom-roof-3",
+      "x0": 6990,
+      "base": 14,
+      "side": "down",
+      "width": 24,
+      "spikes": [82.2, 116.45, 137, 116.45, 82.2],
+      "note": "Beat 07: the slalom from 1-3, with a Shrink at its mouth that wears off partway through."
+    },
+    {
+      "id": "high-eye-top",
+      "x0": 7650,
+      "base": 14,
+      "side": "down",
+      "width": 24,
+      "spikes": [57, 57, 57, 57],
+      "note": "beat 08"
+    },
+    {
+      "id": "high-eye-bottom",
+      "x0": 7650,
+      "base": 150,
+      "side": "up",
+      "width": 24,
+      "spikes": [57, 57, 57, 57],
+      "note": "beat 08"
+    }
+  ],
+  "seesaws": [],
+  "gates": [],
+  "curtains": [],
+  "wheels": [],
+  "pebbles": [],
+  "seeds": [
+    {
+      "id": "lane",
+      "x": 2850,
+      "y": 300,
+      "route": [[2200, 260], [2380, 295], [2900, 295], [3050, 250]],
+      "note": "Beat 03: past the eye in the lower lane."
+    },
+    { "id": "needle", "x": 3896, "y": 191, "note": "beat 05: the whole way is a bramble wall with an eye" },
+    {
+      "id": "thimble",
+      "x": 7698,
+      "y": 82,
+      "route": [[7250, 120], [7400, 82], [7800, 82], [8050, 150]],
+      "note": "Beat 08: in the upper lane's eye."
+    }
+  ],
+  "bubbles": [],
+  "orbs": [
+    { "id": "shrink-1", "x": 1600, "y": 190, "kind": "shrink", "time": 5, "note": "beat 02: in open sky" },
+    { "id": "shrink-2", "x": 2400, "y": 295, "kind": "shrink", "time": 5, "note": "beat 03: at the lower lane's mouth" },
+    { "id": "shrink-3", "x": 3560, "y": 191, "kind": "shrink", "time": 5, "note": "beat 05" },
+    { "id": "shrink-4", "x": 5650, "y": 200, "kind": "shrink", "time": 6, "note": "beat 07: wears off in the slalom" },
+    { "id": "shrink-5", "x": 7400, "y": 82, "kind": "shrink", "time": 5, "note": "beat 08" }
+  ],
+  "crushers": [],
+  "blooms": [{ "id": "bloom-1", "x": 2100, "note": "beat 04" }, { "id": "bloom-2", "x": 5000, "note": "beat 06" }],
+  "route": [[3300, 191], [3560, 191], [4100, 191]]
+}
